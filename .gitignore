@@ -34,4 +34,9 @@ vignettes/*.pdf
 
 # Shiny token, see https://shiny.rstudio.com/articles/shinyapps.html
 rsconnect/
+
+# Mac users 
+*.DS_Store
+.Rproj
 .Rproj.user
+dissertation_work.Rproj
