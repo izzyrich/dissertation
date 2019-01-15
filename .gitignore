@@ -37,6 +37,7 @@ rsconnect/
 
 # Mac users 
 *.DS_Store
+.DS_Store
 .Rproj
 .Rproj.user
 dissertation_work.Rproj
