@@ -11,7 +11,6 @@ All the work completed for my dissertation in EES for partial fulfillment of the
 
 
 **Current tasks**
-- [ ] One page plan due 17 January along with supporting documents
 - [ ] Draw out prediction figures
 - [ ] Write out predictions
 - [ ] Complete all GEE tutorials 
