@@ -5,18 +5,15 @@ All the work completed for my dissertation in EES for partial fulfillment of the
 
 **Table of Contents**
 - [one_page_plan](/one_page_plan): all work regarding the one page plan due 17 January
+- [full plan](/dissertation_plan): full plan due 31 January
 - [meeting_notes](/meeting_notes.docx): to track my notes from all meetings with Isla and/or Gergana
 - [Gitignore file](/.gitignore): outlines which files to ignore when syncing with RStudio
 - [License file](/license.txt): containing the license for this repository
 
-
-**WEEK 2 - complete by Jan 27th**
+**WEEK 3 - complete by Feb 3rd**
 - All GEE tutorials
 - Draw out prediction figures
-- Pre-register 
-- Dissertation plan
-
-**WEEK 3 - complete by Feb 3rd**
+- Pre-register
 - Finish plan
 - **Dissertation plan due Jan 31st**
 - Data gathering/Coding
@@ -61,7 +58,7 @@ WEEK 12 - complete by April 14th
 
 **WEEK 16 - complete by May 12th**
 - practice presentation
-- **Presentation May 9th**
+- **Presentation May 10th**
 
 This work is licensed under a [Creative Commons Attribution-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/).
 
