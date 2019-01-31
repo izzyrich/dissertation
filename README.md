@@ -4,9 +4,10 @@ All the work completed for my dissertation in EES for partial fulfillment of the
 
 
 **Table of Contents**
+- [full plan](/full_plan): all work regarding the full plan due 31 Jan
 - [one_page_plan](/one_page_plan): all work regarding the one page plan due 17 January
-- [full plan](/dissertation_plan.docx): full plan due 31 January
 - [meeting_notes](/meeting_notes.docx): to track my notes from all meetings with Isla and/or Gergana
+- [data references](/data_references.docx): all references to data sources (cannot be input into Zotero)
 - [Gitignore file](/.gitignore): outlines which files to ignore when syncing with RStudio
 - [License file](/license.txt): containing the license for this repository
 
