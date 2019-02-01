@@ -4,6 +4,8 @@ All the work completed for my dissertation in EES for partial fulfillment of the
 
 
 **Table of Contents**
+- [Code folder](/code): all code scripts for dissertation
+- [Images folder](/images): all images/figures for dissertation
 - [Full plan folder](/full_plan): all work regarding the full plan due 31 Jan
 - [One page plan folder](/one_page_plan): all work regarding the one page plan due 17 January
 - [Meeting notes document](/meeting_notes.docx): to track my notes from all meetings with Isla and/or Gergana
