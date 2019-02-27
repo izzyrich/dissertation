@@ -35,7 +35,18 @@ write.csv(lucas_filtered, file = "data/lucas_2012_filtered.csv")
 coordinates(lucas_filtered) <- c("LONG", "LAT")
 this_crs <- st_crs("+proj=longlat +ellps=WGS84 +datum=WGS84")
 sp_file <- st_as_sf(lucas_filtered, coords = c("LAT", "LONG"), crs = this_crs)
+
+# will need to set the extent (to the shape of Latvia) as well as the coordinate system
+# gergana sent these bits of code
+# specific bit for project4string to go with GEE: CRS("+init=epsg: 3857”)
+# bt_spatial_df_m <- SpatialPointsDataFrame(coords_m, bt_coords_m) how gergana 
+# sets coordinates with lat/long
+# below, how gergana sets projections
+# atc_m <- projectRaster(atc_mar, crs = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0") 
+
 st_crs(sp_file) # no reference system still -- will this be an issue??
+
+str(sp_file) # can check coordinate system this way too
 
 # check if it worked - it did!
 ggplot() +
