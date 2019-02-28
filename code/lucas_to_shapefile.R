@@ -8,18 +8,21 @@ library(rgdal)
 library(sp)
 library(raster)
 library(sf)
+library(rworldmap)
+library(grid)
+library(rworldxtra)
 
 # import dataset ----
 lucas <- read_csv("data/2012_lucas.csv")
 
 # filter for abandoned land ----
 U112_options <- c("D10", "D20") # stated that these were abandoned agricultural areas
-list <- c("B", "D", "E") # classes that could be agriculture in U410 (Cropland, shrubland, grassland)
-U410_options <-  paste0("^(", paste(list, collapse = "|"), ")")
+U410_options <- c("B", "C", "D", "E", "F") # classes that could be agriculture in U410 (natural terrestrial areas)
 
 lucas_filtered <- lucas %>% 
   dplyr::filter(LU1 == "U112" & "LC1" %in% U112_options | 
-                  LU1 == "U410" & str_detect(LC1, U410_options)) %>%
+                  LU1 == "U410" & "LC1" %in% U410_options |
+                 LU1 == "U420" & LC1 == "E30") %>%
   dplyr::select(GPS_LAT, GPS_LONG) # potentially need elevation here??
 
 # may need to change column names to change to shapefile
@@ -29,55 +32,57 @@ colnames(lucas_filtered)[colnames(lucas_filtered) == "GPS_LONG"] <- "LONG"
 # write to csv ----
 write.csv(lucas_filtered, file = "data/lucas_2012_filtered.csv")
 
-# write to shp ----
-
 # most successful attempt - I thought this worked but the CRS didn't seem to work
 coordinates(lucas_filtered) <- c("LONG", "LAT")
 this_crs <- st_crs("+proj=longlat +ellps=WGS84 +datum=WGS84")
 sp_file <- st_as_sf(lucas_filtered, coords = c("LAT", "LONG"), crs = this_crs)
 
-# will need to set the extent (to the shape of Latvia) as well as the coordinate system
-# gergana sent these bits of code
-# specific bit for project4string to go with GEE: CRS("+init=epsg: 3857”)
-# bt_spatial_df_m <- SpatialPointsDataFrame(coords_m, bt_coords_m) how gergana 
-# sets coordinates with lat/long
-# below, how gergana sets projections
-# atc_m <- projectRaster(atc_mar, crs = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0") 
+# write to shapefile 
+st_write(sp_file,
+         "data/lucas_2012.shp", driver = "ESRI Shapefile")
 
-st_crs(sp_file) # no reference system still -- will this be an issue??
+# add extent (boundary of Latvia) ----
+latvia <- raster::getData("GADM", country = "LVA", level = 0)
 
-str(sp_file) # can check coordinate system this way too
+# format data
+map <- fortify(latvia)%>%
+  dplyr::select(long, lat) 
+colnames(map)[colnames(map) == "lat"] <- "LAT"
+colnames(map)[colnames(map) == "long"] <- "LONG"
+
+# set coordinates 
+coordinates(map) <- c("LONG", "LAT")
+
+# spatial object (may not be necessary)
+sp_border_file <- st_as_sf(map, coords = c("LAT", "LONG"), crs = this_crs)
 
 # check if it worked - it did!
 ggplot() +
   geom_sf(data = sp_file) +
   ggtitle("Map of Plot Locations")
 
-# write to shapefile 
-st_write(sp_file,
-         "data/lucas_2012.shp", driver = "ESRI Shapefile")
+ggplot() +
+  geom_sf(data = sp_file) +
+  geom_sf(data = sp_border_file) +
+  ggtitle("Boundary plot")
 
-# other trials
-#coordinates(lucas_filtered) <- c("LONG", "LAT")
-#coords_man <- SpatialPoints(lucas_filtered, 
-                            proj4string = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
-#lucas_2009_shapefile <- spTransform(coords_man, CRS("+proj=longlat"))
-#st_crs(lucas_2009_shapefile
-#proj4string(lucas_filtered) <- CRS("+proj=longlat +datum=WGS84")
-#LLcoor<-spTransform(WGScoor,CRS("+proj=longlat"))
-#class(lucas_filtered)
-#writeOGR(lucas_filtered, "lucas_2009_shapefile", driver = "ESRI Shapefile")
-#locations <- st_as_sf(lucas_filtered, coords = c("GPS_LAT", "GPS_LONG", crs = WGS84))
-#st_crs(locations)
-#df.SP <- st_as_sf(lucas_filtered, coords = c("LONG", "LAT"), crs = 4326)
-#st_crs(df.SP)
-#df.SP<-st_transform(x = df.SP, crs = 4326)
-#df.SP$LONG<-st_coordinates(df.SP)[,1]
-#df.SP$LAT<-st_coordinates(df.SP)[,2]
-#df.SP<-st_transform(x = df.SP, crs = 4326)
-#df.SP$LONG<-st_coordinates(df.SP)[,1] 
-#df.SP$LAT<-st_coordinates(df.SP)[,2] 
-#writeOGR(df.SP, "lucas_2009_shapefile", driver = "ESRI Shapefile")
+# but that doesn't fully set the extent --> change to raster?
+proj4string(lucas_filtered) <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+points <- spTransform(lucas_filtered, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+r <- raster(points) # points as raster
 
+proj4string(map) <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+border_points <- spTransform(map, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+r_border <- raster(border_points) # border as raster
 
+# set extent 
+setExtent(r, r_border, keepres = FALSE, snap = FALSE)
+shapefile(r, 'file.shp') # doesn't work?
 
+# convert raster back to spatial points dataframe - but still doesn't write to shapefile 
+new_r <- rasterToPoints(r, fun = NULL, spatial = TRUE)
+str(new_r)
+class(new_r)
+writeOGR(new_r, "data/lucas_2012_extent.shp", driver = "ESRI Shapefile")
+st_write(new_r,
+         "data/lucas_2012_extent.shp", driver = "ESRI Shapefile")
