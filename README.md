@@ -15,7 +15,6 @@ All the work completed for my dissertation in EES for partial fulfillment of the
 - [License file](/license.txt): containing the license for this repository.
 
 **Current tasks**
-- Pre-register
 - Classify land abandonment in Latvia over time
 
 This work is licensed under a [Creative Commons Attribution-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/).
