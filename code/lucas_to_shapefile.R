@@ -14,6 +14,7 @@ library(rworldxtra)
 library(stringr)
 library(maptools)
 library(geojsonio)
+library(tiff)
 
 # Import base dataset 
 lucas <- read_csv("data/2012_lucas.csv")
@@ -296,3 +297,53 @@ points_total@bbox <- as.matrix(extent(r_border))
 
 # write to shapefile
 shapefile(points_total, 'data/2012_lucas_total.shp', overwrite = TRUE)
+
+# Filter with CORINE! ----
+
+# create CORINE 2012 layer
+
+# Open and transform into spatial objects dataframe 
+CORINE_2012 <- raster(x = "data/CORINE.tif")
+crs(CORINE_2012) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3035"
+all_CORINE_points <- rasterToPoints(CORINE_2012, spatial = TRUE)
+transformed_CORINE <- spTransform(all_CORINE_points, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3035")
+transformed_CORINE@bbox <- as.matrix(extent(r_border))
+
+# to normal dataframe 
+CORINE <- as.data.frame(transformed_CORINE)
+
+# format
+colnames(CORINE)[colnames(CORINE) == "CORINE"] <- "class"
+colnames(CORINE)[colnames(CORINE) == "x"] <- "LAT"
+colnames(CORINE)[colnames(CORINE) == "y"] <- "LONG"
+
+# FORMAT FOR DATA ANALYSIS ----
+
+# 2012
+dem <- raster(x = "data/landusemap2012.tif")
+crs(dem) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857"
+matriz <- rasterToPoints(dem, spatial = TRUE)
+new_pints <- spTransform(matriz, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+new_pints@bbox <- as.matrix(extent(r_border))
+
+# dataframe of all points and classes 
+df <- as.data.frame(new_pints)
+
+colnames(df)[colnames(df) == "landusemap2012"] <- "class"
+colnames(df)[colnames(df) == "x"] <- "LAT"
+colnames(df)[colnames(df) == "y"] <- "LONG"
+  
+# make dataframe of key classes
+key_classes <- c("1", "2", "3")
+key_df <- df %>%
+  dplyr::filter(class %in% key_classes) %>%
+  mutate(year = "2012") %>%
+  mutate(id = row_number()) 
+
+key_df <- key_df[,c(5,4,1,2,3)]
+
+
+
+
+
+
