@@ -15,6 +15,7 @@ library(stringr)
 library(maptools)
 library(geojsonio)
 library(tiff)
+library(dggridR)
 
 # Import base dataset 
 lucas <- read_csv("data/2012_lucas.csv")
@@ -33,6 +34,8 @@ spdf = SpatialPolygonsDataFrame(latvia, data)
 latvia_json <- geojson_json(spdf)
 geojson_write(latvia_json, file = "data/latvia_json.geojson")
 shapefile(spdf, "data/latvia_poly", overwrite = TRUE)
+
+latvia_poly <- readOGR(dsn = ".", layer = "latvia_poly")
 
 # format data
 map <- fortify(latvia)%>%
@@ -298,25 +301,6 @@ points_total@bbox <- as.matrix(extent(r_border))
 # write to shapefile
 shapefile(points_total, 'data/2012_lucas_total.shp', overwrite = TRUE)
 
-# Filter with CORINE! ----
-
-# create CORINE 2012 layer
-
-# Open and transform into spatial objects dataframe 
-CORINE_2012 <- raster(x = "data/CORINE.tif")
-crs(CORINE_2012) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3035"
-all_CORINE_points <- rasterToPoints(CORINE_2012, spatial = TRUE)
-transformed_CORINE <- spTransform(all_CORINE_points, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3035")
-transformed_CORINE@bbox <- as.matrix(extent(r_border))
-
-# to normal dataframe 
-CORINE <- as.data.frame(transformed_CORINE)
-
-# format
-colnames(CORINE)[colnames(CORINE) == "CORINE"] <- "class"
-colnames(CORINE)[colnames(CORINE) == "x"] <- "LAT"
-colnames(CORINE)[colnames(CORINE) == "y"] <- "LONG"
-
 # FORMAT FOR DATA ANALYSIS ----
 
 # 2012
@@ -340,10 +324,32 @@ key_df <- df %>%
   mutate(year = "2012") %>%
   mutate(id = row_number()) 
 
+# rearrange columns 
 key_df <- key_df[,c(5,4,1,2,3)]
 
+# put grid over Latvia to sample from 
+dggs <- dgconstruct(spacing=10, metric=FALSE, resround='nearest')
 
+lva_border <- readOGR("data", "latvia_border")
 
+latvia_grid <- dgshptogrid(dggs, "data/latvia_border.shp")
 
+mapdata <- data.frame(border_points)
+mapdatagrid <- data.frame(latvia_grid)
 
+(plot <- ggplot() + 
+  geom_polygon(data=mapdata, aes(x=LONG, y=LAT), fill=NA, color="black")   +
+  geom_polygon(data=mapdatagrid,   aes(x=LONG, y=LAT, group=group), fill="blue", alpha=0.4)   +
+  geom_path   (data=mapdatagrid,   aes(x=LONG, y=LAT, group=group), alpha=0.4, color="white") +
+  coord_equal())
 
+str(mapdatagrid)
+
+length(unique(mapdatagrid$cell))
+
+colnames(mapdatagrid)[colnames(mapdatagrid) == "lat"] <- "LAT"
+colnames(mapdatagrid)[colnames(mapdatagrid) == "long"] <- "LONG"
+
+spatial <- SpatialGrid(mapdatagrid)
+
+full_frame <- data.frame(key_df, grid=over(key_df, mapdatagrid))
