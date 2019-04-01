@@ -376,20 +376,19 @@ latvia_grid <- dgshptogrid(dggs, "data/latvia_border.shp")
 mapdata <- data.frame(border_points)
 mapdatagrid <- data.frame(latvia_grid)
 
+colnames(mapdatagrid)[colnames(mapdatagrid) == "lat"] <- "LAT"
+colnames(mapdatagrid)[colnames(mapdatagrid) == "long"] <- "LONG"
+
+
 (plot <- ggplot() + 
   geom_polygon(data=mapdata, aes(x=LONG, y=LAT), fill=NA, color="black")   +
   geom_polygon(data=mapdatagrid,   aes(x=LONG, y=LAT, group=group), fill="blue", alpha=0.4)   +
   geom_path   (data=mapdatagrid,   aes(x=LONG, y=LAT, group=group), alpha=0.4, color="white") +
   coord_equal())
 
-str(mapdatagrid)
-
-length(unique(mapdatagrid$cell))
-
-colnames(mapdatagrid)[colnames(mapdatagrid) == "lat"] <- "LAT"
-colnames(mapdatagrid)[colnames(mapdatagrid) == "long"] <- "LONG"
-
 key_df00$cell <- dgGEO_to_SEQNUM(dggs, key_df00$LONG, key_df00$LAT)
+
+write.csv(key_df00, file = "data/test.csv")
 
 Mode <- function(x) {
   ux <- unique(x)
@@ -398,5 +397,5 @@ Mode <- function(x) {
 }
 
 key_df00_cells <- key_df00 %>%
-  group_by(Year, Cell) %>%
+  group_by(year, cell) %>%
   summarise_each(funs(Mode), class)
