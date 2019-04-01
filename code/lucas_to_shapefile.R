@@ -15,6 +15,7 @@ library(stringr)
 library(maptools)
 library(tiff)
 library(dggridR)
+library(modeest)
 
 # Import base dataset 
 lucas <- read_csv("data/2012_lucas.csv")
@@ -299,7 +300,7 @@ shapefile(points_total, 'data/2012_lucas_total.shp', overwrite = TRUE)
 # FORMAT FOR DATA ANALYSIS ----
 
 # 2011 -----
-dem <- raster(x = "data/landusemap2012.tif")
+dem <- raster(x = "data/landusemap2011.tif")
 crs(dem) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857"
 matriz <- rasterToPoints(dem, spatial = TRUE)
 new_pints <- spTransform(matriz, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
@@ -308,19 +309,18 @@ new_pints@bbox <- as.matrix(extent(r_border))
 # dataframe of all points and classes 
 df <- as.data.frame(new_pints)
 
-colnames(df)[colnames(df) == "landusemap2012"] <- "class"
+colnames(df)[colnames(df) == "landusemap2011"] <- "class"
 colnames(df)[colnames(df) == "x"] <- "LAT"
 colnames(df)[colnames(df) == "y"] <- "LONG"
 
 # make dataframe of key classes
 key_classes <- c("1", "2", "3")
 key_df <- df %>%
-  dplyr::filter(class %in% key_classes) %>%
-  mutate(year = "2012") %>%
-  mutate(id = row_number()) 
+  filter(class %in% key_classes) %>%
+  mutate(year = "2011")
 
 # rearrange columns 
-key_df <- key_df[,c(5,4,1,2,3)]
+key_df <- key_df[,c(4,1,2,3)]
 
 # 1985
 dem85 <- raster(x = "data/landusemap1985.tif")
@@ -366,8 +366,12 @@ key_df00 <- df00 %>%
 # rearrange columns 
 key_df00 <- key_df00[,c(4,1,2,3)]
 
+# COMBINE ----
+
+total_final <- rbind(key_df00, key_df85, key_df)
+
 # GRID ----
-dggs <- dgconstruct(spacing=10, metric=FALSE, resround='nearest')
+dggs <- dgconstruct(spacing=0.25, metric=FALSE, resround='nearest')
 
 lva_border <- readOGR("data", "latvia_border")
 
@@ -386,16 +390,36 @@ colnames(mapdatagrid)[colnames(mapdatagrid) == "long"] <- "LONG"
   geom_path   (data=mapdatagrid,   aes(x=LONG, y=LAT, group=group), alpha=0.4, color="white") +
   coord_equal())
 
-key_df00$cell <- dgGEO_to_SEQNUM(dggs, key_df00$LONG, key_df00$LAT)
+total_final$cell <- dgGEO_to_SEQNUM(dggs, total_final$LONG, total_final$LAT)$seqnum
+gridfilename <- dgcellstogrid(dggs, total_final$cell)
 
-write.csv(key_df00, file = "data/test.csv")
+cellcenters <- dgSEQNUM_to_GEO(dggs,total_final$cell)
+grid   <- dgcellstogrid(dggs,total_final$cell,frame=TRUE,wrapcells=TRUE)
 
 Mode <- function(x) {
   ux <- unique(x)
-  tab <- tabulate(match(x, ux))
-  ux[tab == max(tab)]
+  ux[which.max(tabulate(match(x, ux)))]
 }
 
-key_df00_cells <- key_df00 %>%
+total_final_cells <- total_final %>%
   group_by(year, cell) %>%
-  summarise_each(funs(Mode), class)
+  mutate(dom = Mode(class)) %>%
+  distinct(cell, .keep_all = TRUE) %>%
+  ungroup() %>%
+  filter(dom == "3")
+
+## maybe by pixels??
+pel <- total_final %>% 
+  filter(class == "2")
+  
+
+n <- total_final %>%
+  filter(LAT == "21.44862")
+
+new <- total_final %>% 
+  mutate(ID = group_indices(.,LAT,LONG))
+ 
+areas_total <- new %>%  
+  group_by(ID, year) %>%
+  mutate(number = n()) %>%
+  mutate(area = number*0.01) 
