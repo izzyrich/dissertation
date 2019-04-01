@@ -13,7 +13,6 @@ library(grid)
 library(rworldxtra)
 library(stringr)
 library(maptools)
-library(geojsonio)
 library(tiff)
 library(dggridR)
 
@@ -31,11 +30,7 @@ latvia <- spTransform(latvia, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=eps
 # create polygon
 data = data.frame(f=99.9)
 spdf = SpatialPolygonsDataFrame(latvia, data)
-latvia_json <- geojson_json(spdf)
-geojson_write(latvia_json, file = "data/latvia_json.geojson")
 shapefile(spdf, "data/latvia_poly", overwrite = TRUE)
-
-latvia_poly <- readOGR(dsn = ".", layer = "latvia_poly")
 
 # format data
 map <- fortify(latvia)%>%
@@ -303,7 +298,7 @@ shapefile(points_total, 'data/2012_lucas_total.shp', overwrite = TRUE)
 
 # FORMAT FOR DATA ANALYSIS ----
 
-# 2012
+# 2011 -----
 dem <- raster(x = "data/landusemap2012.tif")
 crs(dem) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857"
 matriz <- rasterToPoints(dem, spatial = TRUE)
@@ -316,7 +311,7 @@ df <- as.data.frame(new_pints)
 colnames(df)[colnames(df) == "landusemap2012"] <- "class"
 colnames(df)[colnames(df) == "x"] <- "LAT"
 colnames(df)[colnames(df) == "y"] <- "LONG"
-  
+
 # make dataframe of key classes
 key_classes <- c("1", "2", "3")
 key_df <- df %>%
@@ -327,7 +322,51 @@ key_df <- df %>%
 # rearrange columns 
 key_df <- key_df[,c(5,4,1,2,3)]
 
-# put grid over Latvia to sample from 
+# 1985
+dem85 <- raster(x = "data/landusemap1985.tif")
+crs(dem85) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857"
+matriz85 <- rasterToPoints(dem85, spatial = TRUE)
+new_pints85 <- spTransform(matriz85, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+new_pints85@bbox <- as.matrix(extent(r_border))
+
+# dataframe of all points and classes 
+df85 <- as.data.frame(new_pints85)
+
+colnames(df85)[colnames(df85) == "landusemap1985"] <- "class"
+colnames(df85)[colnames(df85) == "x"] <- "LAT"
+colnames(df85)[colnames(df85) == "y"] <- "LONG"
+  
+# make dataframe of key classes
+key_df85 <- df85 %>%
+  dplyr::filter(class %in% key_classes) %>%
+  mutate(year = "1985") 
+
+# rearrange columns 
+key_df85 <- key_df85[,c(4,1,2,3)]
+
+# 2000
+dem00 <- raster(x = "data/landusemap2000.tif")
+crs(dem00) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857"
+matriz00 <- rasterToPoints(dem00, spatial = TRUE)
+new_pints00 <- spTransform(matriz00, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+new_pints00@bbox <- as.matrix(extent(r_border))
+
+# dataframe of all points and classes 
+df00 <- as.data.frame(new_pints00)
+
+colnames(df00)[colnames(df00) == "landusemap2000"] <- "class"
+colnames(df00)[colnames(df00) == "x"] <- "LAT"
+colnames(df00)[colnames(df00) == "y"] <- "LONG"
+
+# make dataframe of key classes
+key_df00 <- df00 %>%
+  dplyr::filter(class %in% key_classes) %>%
+  mutate(year = "2000") 
+
+# rearrange columns 
+key_df00 <- key_df00[,c(4,1,2,3)]
+
+# GRID ----
 dggs <- dgconstruct(spacing=10, metric=FALSE, resround='nearest')
 
 lva_border <- readOGR("data", "latvia_border")
@@ -350,6 +389,14 @@ length(unique(mapdatagrid$cell))
 colnames(mapdatagrid)[colnames(mapdatagrid) == "lat"] <- "LAT"
 colnames(mapdatagrid)[colnames(mapdatagrid) == "long"] <- "LONG"
 
-spatial <- SpatialGrid(mapdatagrid)
+key_df00$cell <- dgGEO_to_SEQNUM(dggs, key_df00$LONG, key_df00$LAT)
 
-full_frame <- data.frame(key_df, grid=over(key_df, mapdatagrid))
+Mode <- function(x) {
+  ux <- unique(x)
+  tab <- tabulate(match(x, ux))
+  ux[tab == max(tab)]
+}
+
+key_df00_cells <- key_df00 %>%
+  group_by(Year, Cell) %>%
+  summarise_each(funs(Mode), class)
