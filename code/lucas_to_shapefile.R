@@ -371,11 +371,12 @@ key_df00 <- key_df00[,c(4,1,2,3)]
 total_final <- rbind(key_df00, key_df85, key_df)
 
 # GRID ----
-dggs <- dgconstruct(spacing=0.25, metric=FALSE, resround='nearest')
+dggs <- dgconstruct(spacing=100, metric=FALSE, resround='nearest')
 
 lva_border <- readOGR("data", "latvia_border")
 
 latvia_grid <- dgshptogrid(dggs, "data/latvia_border.shp")
+extent(lva_border)
 
 mapdata <- data.frame(border_points)
 mapdatagrid <- data.frame(latvia_grid)
@@ -389,6 +390,23 @@ colnames(mapdatagrid)[colnames(mapdatagrid) == "long"] <- "LONG"
   geom_polygon(data=mapdatagrid,   aes(x=LONG, y=LAT, group=group), fill="blue", alpha=0.4)   +
   geom_path   (data=mapdatagrid,   aes(x=LONG, y=LAT, group=group), alpha=0.4, color="white") +
   coord_equal())
+
+dgearthgrid(dggs,savegrid="temp.shp")
+
+# set CRS and transform 
+coordinates(mapdatagrid) <- c("LONG", "LAT")
+proj4string(mapdatagrid) <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+latvia_grid <- spTransform(mapdatagrid, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+
+# set extent
+latvia_grid@bbox <- as.matrix(extent(r_border))
+
+# write to shapefile
+shapefile(latvia_grid, 'data/latvia_grid.shp', overwrite = TRUE)
+
+
+
+
 
 total_final$cell <- dgGEO_to_SEQNUM(dggs, total_final$LONG, total_final$LAT)$seqnum
 gridfilename <- dgcellstogrid(dggs, total_final$cell)
@@ -423,3 +441,39 @@ areas_total <- new %>%
   group_by(ID, year) %>%
   mutate(number = n()) %>%
   mutate(area = number*0.01) 
+
+
+shp <- getData(country = "LVA", level = 0)
+shp <- spTransform(shp, CRSobj = "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+plot(shp)
+cs <- c(1, 1)*2
+grdpts <- makegrid(shp)
+spgrd <- SpatialPoints(grdpts, proj4string = CRS(proj4string(shp)))
+spgrdWithin <- SpatialPixels(spgrd[shp,])
+plot(spgrdWithin, add = T)
+spgrdWithin <- as(spgrdWithin, "SpatialPolygons")
+shapefile(spgrdWithin, 'data/grid.shp', overwrite = TRUE)
+
+extent(r_border)
+
+xrange <- 29.24051 - 20.97139
+yrange <- 58.08577 - 55.66372
+
+grid_spacing <- 1000
+rozmery <- c(xrange/grid_spacing , yrange/grid_spacing) %>% # number of polygons necessary
+  ceiling() # rounded up to nearest integer
+
+polygony <- st_make_grid(lva_border, square = T, n = rozmery) %>% # the grid, covering bounding box
+  st_intersection(lva_border) %>% # only the inside part 
+  st_sf() # not really required, but makes the grid nicer to work with later
+
+plot(polygony, col = 'white')
+
+boop <- st_make_grid(lva_border, cellsize = c(diff(st_bbox(lva_border)[c(1, 3)]),
+                             diff(st_bbox(lva_border)[c(2, 4)]))/1, offset = st_bbox(lva_border)[c("xmin", "ymin")],
+             n = c(10, 10), crs = if (missing(lva_border)) NA_crs_ else st_crs(lva_border),
+             what = "polygons", square = TRUE)
+
+plot(boop, col = 'white')
+
+g = st_make_grid(lva_border, n = c(20,10))
