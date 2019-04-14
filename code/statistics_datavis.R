@@ -9,9 +9,11 @@ library(nlme)
 library(stargazer)
 library(sjPlot)
 library(ggeffects)
-library(Rmisc)
 library(scales)
 library(gridExtra)
+library(broom)
+library(lmerTest)
+library(segmented)
 
 # theme from coding club tutorial
 theme_marine <- function(){
@@ -38,75 +40,132 @@ theme_marine <- function(){
 
 # import datasests + format ----
 areaset <- read_csv("data/area.csv")
-
-areaset[is.na(areaset)] <- 0
 areaset$landuse <- factor(areaset$landuse)
 areaset$year <- factor(areaset$year)
+
+transition <- read_csv("data/transition.csv")
 
 detailed_area <- read_csv("data/detailed_area.csv") %>%
   dplyr::select(-c("X1"))
 colnames(detailed_area)[colnames(detailed_area) == "label"] <- "cell"
 detailed_area$class <- factor(detailed_area$class)
 detailed_area$cell <- factor(detailed_area$cell)
-detailed_area[is.na(detailed_area)] <- 0
 
-transition <- read_csv("data/transition.csv")
 
 detailed_transition <- read_csv("data/detailed_transition.csv") %>%
   dplyr::select(-c("X1"))
 colnames(detailed_transition)[colnames(detailed_transition) == "label"] <- "cell"
 detailed_transition$cell <- factor(detailed_transition$cell)
 detailed_transition$transition <- factor(detailed_transition$transition)
-detailed_transition[is.na(detailed_transition)] <- 0
-
-# Q1: Is there quantifiable, country-scale land-use change following SPE
-# events in Latvia? ----
-# looking at the change in area with time -- per class means class is fixed effect
-# account for year and cell as random effects to account for spatial/temporal autocorrelation
-
-# histogram
-hist(detailed_area$area) # not normal - left skewed due to lots of zeros -- use poisson?
-
-# model
-mod1REML <- lmer(area ~ I(year - 1988) + class + (1|year) + (1|cell), data = detailed_area)
-summary(mod1REML) # best model
-mod1 <- lmer(area ~ I(year - 1988) + class + (1|year) + (1|cell), data = detailed_area, REML = FALSE)
-summary(mod1) # best model
-mod1b <- lmer(area ~ I(year - 1988) + class + (cell|year), data = detailed_area, REML = FALSE)
-summary(mod1b) # could not converge 
-mod1c <- lmer(area ~ I(year - 1988) + class + (cell|year) + (1|year) + (1|cell), data = detailed_area, REML = FALSE)
-summary(mod1c) # could not converge 
-mod1d <- lmer(area ~ I(year - 1988) + class + (1|year), data = detailed_area, REML = FALSE)
-summary(mod1d)
-mod1e <- lmer(area ~ I(year - 1988) + class + (1|cell), data = detailed_area, REML = FALSE)
-summary(mod1e)
-mod1f <- lmer(area ~ I(year - 1988) + class + event + (1|year) + (1|cell), data = detailed_area, REML = FALSE)
-summary(mod1f) 
 
 
-r.squaredGLMM(mod1) # 0.5892351 / 0.743847
-r.squaredGLMM(mod1b)
-r.squaredGLMM(mod1c)
-r.squaredGLMM(mod1d) # 0.5905421 / 0.5963272
-r.squaredGLMM(mod1e) # .5894802 / 0.737027
-r.squaredGLMM(mod1f) # 0.5912443/ 0.7437002
+detailedA <-  detailed_area %>%
+  mutate(grid = if_else(cell == 8 | cell == 9 | cell == 10 | cell == 11 | cell == 23 |
+                          cell == 24 | cell == 25 | cell == 26 | cell == 27 |
+                          cell == 38 | cell == 39 | cell == 40 | cell == 41 |
+                          cell == 42 | cell == 43 | cell == 53 | cell == 54 | cell == 55 | cell == 56, "NW", 
+                        if_else(cell == 3 | cell == 4 | cell == 5 | cell == 6 | cell == 7 |
+                                  cell == 19 | cell == 20 | cell == 21 | cell == 22 |
+                                  cell == 35 | cell == 36 | cell == 37 | cell == 49 |
+                                  cell == 50 | cell == 51 | cell == 52, "SW", 
+                                if_else(cell == 64 | cell == 65 | cell == 66 | cell == 67 | cell == 68 |
+                                          cell == 69 | cell == 79 | cell == 80 | cell == 81 |
+                                          cell == 82 | cell == 83 | cell == 84 | cell == 85 |
+                                          cell == 86 | cell == 87 | cell == 88 | cell == 89 | cell == 94 | 
+                                          cell == 95 | cell == 96 | cell == 97 | cell == 98 | cell == 99 |
+                                          cell == 100 | cell == 101 | cell == 102 | cell == 103 | cell == 104, "C",
+                                        if_else(cell == 113 | cell == 114 | cell == 115 | cell == 116 | cell == 117 |
+                                                  cell == 118 | cell == 119 | cell == 120 | cell == 128 |
+                                                  cell == 129 | cell == 130 | cell == 131 | cell == 132 |
+                                                  cell == 133 | cell == 134 | cell == 143 | cell == 144 | cell == 145 | 
+                                                  cell == 146 | cell == 147 | cell == 158 | cell == 159 | cell == 160 |
+                                                  cell == 161 | cell == 162 | cell == 173 | cell == 174 | cell == 175 | cell == 176, "NE",
+                                                if_else(cell == 108 | cell == 109 | cell == 110 | cell == 111 | cell == 112 |
+                                                          cell == 121 | cell == 122 | cell == 123 | cell == 124 |
+                                                          cell == 125 | cell == 126 | cell == 127 | cell == 136 |
+                                                          cell == 137 | cell == 138 | cell == 139 | cell == 140 | cell == 141 | 
+                                                          cell == 142 | cell == 151 | cell == 152 | cell == 153 | cell == 154 |
+                                                          cell == 155 | cell == 156 | cell == 157 | cell == 166 | cell == 167 | cell == 168 |
+                                                          cell == 169 | cell == 170 | cell == 171 | cell == 172 | cell == 183 | cell == 184 | cell == 185 |
+                                                          cell == 186, "SE", "NA")))))) 
 
-AICc(mod1, mod1d, mod1e,mod1f)
-# mod1   7 298154.3
-# mod1d  6 301025.1
-# mod1e  6 298296.8
-# mod1f  8 298148.2 -- improves model slightly, may not be worth the extra term
 
-mod1n <- lmer(area ~ 1 + (1|year) + (1|cell), data = detailed_area, REML = FALSE)
-summary(mod1n) 
+detailedT <- detailed_transition %>%
+  mutate(grid = if_else(cell == 8 | cell == 9 | cell == 10 | cell == 11 | cell == 23 |
+                            cell == 24 | cell == 25 | cell == 26 | cell == 27 |
+                            cell == 38 | cell == 39 | cell == 40 | cell == 41 |
+                            cell == 42 | cell == 43 | cell == 53 | cell == 54 | cell == 55 | cell == 56, "NW", 
+                        if_else(cell == 3 | cell == 4 | cell == 5 | cell == 6 | cell == 7 |
+                                  cell == 19 | cell == 20 | cell == 21 | cell == 22 |
+                                  cell == 35 | cell == 36 | cell == 37 | cell == 49 |
+                                  cell == 50 | cell == 51 | cell == 52, "SW", 
+                                if_else(cell == 64 | cell == 65 | cell == 66 | cell == 67 | cell == 68 |
+                                          cell == 69 | cell == 79 | cell == 80 | cell == 81 |
+                                          cell == 82 | cell == 83 | cell == 84 | cell == 85 |
+                                          cell == 86 | cell == 87 | cell == 88 | cell == 89 | cell == 94 | 
+                                          cell == 95 | cell == 96 | cell == 97 | cell == 98 | cell == 99 |
+                                          cell == 100 | cell == 101 | cell == 102 | cell == 103 | cell == 104, "C",
+                                        if_else(cell == 113 | cell == 114 | cell == 115 | cell == 116 | cell == 117 |
+                                                  cell == 118 | cell == 119 | cell == 120 | cell == 128 |
+                                                  cell == 129 | cell == 130 | cell == 131 | cell == 132 |
+                                                  cell == 133 | cell == 134 | cell == 143 | cell == 144 | cell == 145 | 
+                                                  cell == 146 | cell == 147 | cell == 158 | cell == 159 | cell == 160 |
+                                                  cell == 161 | cell == 162 | cell == 173 | cell == 174 | cell == 175 | cell == 176, "NE",
+                                                if_else(cell == 108 | cell == 109 | cell == 110 | cell == 111 | cell == 112 |
+                                                          cell == 121 | cell == 122 | cell == 123 | cell == 124 |
+                                                          cell == 125 | cell == 126 | cell == 127 | cell == 136 |
+                                                          cell == 137 | cell == 138 | cell == 139 | cell == 140 | cell == 141 | 
+                                                          cell == 142 | cell == 151 | cell == 152 | cell == 153 | cell == 154 |
+                                                          cell == 155 | cell == 156 | cell == 157 | cell == 166 | cell == 167 | cell == 168 |
+                                                          cell == 169 | cell == 170 | cell == 171 | cell == 172 | cell == 183 | cell == 184 | cell == 185 |
+                                                          cell == 186, "SE", "NA")))))) 
 
-anova(mod1, mod1n) # statistically different 
+questiononeSUC <- detailedA %>%
+  dplyr::filter(year == 1989 | 1990 | 1992 | 1993) %>%
+  dplyr::select(-c(years_since, event, pixels)) %>%
+  mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, class, cell)%>%
+  summarise(average = mean(area)/1000) 
 
-# visualise 
-stargazer(mod1REML, type = "text",
-          digits = 3,
-          star.cutoffs = c(0.05, 0.01, 0.001),
-          digit.separator = "")
+questiononeEUA <- detailedA %>%
+  dplyr::filter(year == 2002 | 2003 | 2005 | 2006) %>%
+  dplyr::select(-c(years_since, event, pixels)) %>%
+  mutate(before_after = ifelse(year == 2002 | year == 2003, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, class, cell)%>%
+  summarise(average = mean(area)/1000) 
+
+
+questiontwoSUC <- detailedT %>%
+  dplyr::filter(year == 1989 | 1990 | 1992 | 1993) %>%
+  dplyr::select(-c(years_since, event, pixels)) %>%
+  mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, transition, cell)%>%
+  summarise(average = mean(area)/1000) 
+
+questiontwoEUA <- detailedT %>%
+  dplyr::filter(year == 2002 | 2003 | 2005 | 2006) %>%
+  dplyr::select(-c(years_since, event, pixels)) %>%
+  mutate(before_after = ifelse(year == 2002 | year == 2003, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, transition, cell)%>%
+  summarise(average = mean(area)/1000) 
+
+
+# Q1: Abandoned:SUC ----
+
+questiononeSUC1 <- questiononeSUC %>%
+  dplyr::filter(class == 1)
+
+questiononeSUC1$grid <- factor(questiononeSUC1$grid)
+questiononeSUC1$cell <- factor(questiononeSUC1$cell)
+questiononeSUC1$before_after <- factor(questiononeSUC1$before_after)
+
+
+abandonedSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiononeSUC1)
+summary(abandonedSUC)
 
 # Set a clean theme for the graphs
 set_theme(base = theme_bw() + 
@@ -116,46 +175,342 @@ set_theme(base = theme_bw() +
                   panel.grid.major.y = element_blank(),
                   plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), units = , "cm")))
 
-# Visualises random effects 
-(re.effects <- plot_model(mod1REML, type = "re", show.values = TRUE))
-
-
-# To see the estimate for our fixed effects
-(fe.effects <- plot_model(mod1REML, show.values = TRUE))
+(fe.effects <- plot_model(abandonedSUC, show.values = TRUE))
+(re.effects <- plot_model(abandonedSUC, type = "re", show.values = TRUE))
 
 # predictions
-ggpredict(mod1REML, terms = c("year")) %>% plot()
+ggpredict(abandonedSUC, terms = c("before_after")) %>% plot()
 
-ggpredict(mod1REML, terms = c("year", "class"), type = "re") %>% plot()
+ggpredict(abandonedSUC, terms = c("before_after", "grid", "cell"), type = "re") %>% plot()
 
-# assumptions 
-plot(mod1) # not homoscedastic it seems
-qqnorm(resid(mod1)) 
-qqline(resid(mod1)) # a bit skewed at the ends
 
-# linearity 
-# Error in xy.coords(x, y, xlabel, ylabel, log) : 
-# 'x' and 'y' lengths differ
-Linearity1 <- plot(resid(mod1REML), area)
+(ggplot(questiononeSUC1,aes(x=before_after,y=average))+
+    geom_point()+
+    geom_line(aes(group=cell))+  ## connect subjects with a line
+    facet_grid(.~grid) )                     ## squash together
 
-# homoscedasity - fake levene's test 
-detailed_area$mod1res<- residuals(mod1REML) #extracts the residuals and places them in a new column in our original data table
+hist(questiononeSUC1$average)
+qqnorm(resid(abandonedSUC)) 
+qqline(resid(abandonedSUC)) # meets assumptions!!!!
 
-detailed_area$absmodel <-abs(detailed_area$mod1res) #creates a new column with the absolute value of the residuals
+r.squaredGLMM(abandonedSUC)  # 0.006821604 0.8151366
 
-detailed_area$res2 <- detailed_area$mod1res^2 #squares the absolute values of the residuals to provide the more robust estimate
+abandonedSUCdf <- tidy(abandonedSUC)
 
-Levene.Model.res <- lm(res2 ~ year + class + cell, data=detailed_area) #ANOVA of the squared residuals
+# Q1 Extensive: SUC ----
+questiononeSUC2 <- questiononeSUC %>%
+  dplyr::filter(class == 2)
 
-anova(Levene.Model.res) #displays the results -- all below 0.05 so not equal variances!
+questiononeSUC2$grid <- factor(questiononeSUC2$grid)
+questiononeSUC2$cell <- factor(questiononeSUC2$cell)
+questiononeSUC2$before_after <- factor(questiononeSUC2$before_after)
 
-# normal distribution 
-require("lattice")
-qqmath(mod1REML, id=0.05) # - some violation 
 
-# need to transform
-modREML1b <- lmer(sqrt(area) ~ I(year - 1988) + class + (1|year) + (1|cell), data = detailed_area)
-qqmath(modREML1b, id=0.05) # doesn't improve
+extensiveSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiononeSUC2)
+summary(extensiveSUC)
+
+r.squaredGLMM(extensiveSUC)
+
+hist(questiononeSUC2$average)
+plot(extensiveSUC)
+qqnorm(resid(extensiveSUC)) 
+qqline(resid(extensiveSUC)) # meets assumptions!!!!
+
+# Q1 Extensive: EUA ----
+questiononeEUA2 <- questiononeEUA %>%
+  dplyr::filter(class == 2)
+
+questiononeEUA2$grid <- factor(questiononeEUA2$grid)
+questiononeEUA2$cell <- factor(questiononeEUA2$cell)
+questiononeEUA2$before_after <- factor(questiononeEUA2$before_after)
+
+extensiveEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiononeEUA2)
+summary(extensiveEUA)
+
+r.squaredGLMM(extensiveEUA)
+
+hist(questiononeEUA2$average)
+plot(extensiveEUA)
+qqnorm(resid(extensiveEUA)) 
+qqline(resid(extensiveEUA)) # meets assumptions!!!!
+
+# Q1 Intensive: SUC ----
+questiononeSUC3 <- questiononeSUC %>%
+  dplyr::filter(class == 3)
+
+questiononeSUC3$grid <- factor(questiononeSUC3$grid)
+questiononeSUC3$cell <- factor(questiononeSUC3$cell)
+questiononeSUC3$before_after <- factor(questiononeSUC3$before_after)
+
+
+intensiveSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiononeSUC3)
+summary(intensiveSUC)
+
+r.squaredGLMM(intensiveSUC)
+
+hist(questiononeSUC3$average)
+plot(intensiveSUC)
+qqnorm(resid(intensiveSUC)) 
+qqline(resid(intensiveSUC)) # meets assumptions!!!!
+
+# Q1 Intensive: EUA ----
+questiononeEUA3 <- questiononeEUA %>%
+  dplyr::filter(class == 3)
+
+questiononeEUA3$grid <- factor(questiononeEUA3$grid)
+questiononeEUA3$cell <- factor(questiononeEUA3$cell)
+questiononeEUA3$before_after <- factor(questiononeEUA3$before_after)
+
+intensiveEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiononeEUA3)
+summary(intensiveEUA)
+
+r.squaredGLMM(intensiveEUA)
+
+hist(questiononeEUA3$average)
+plot(intensiveEUA)
+qqnorm(resid(intensiveEUA)) 
+qqline(resid(intensiveEUA)) # meets assumptions!!!!
+
+# Q1 Abandoned: EUA ----
+questiononeEUA1 <- questiononeEUA %>%
+  dplyr::filter(class == 1) 
+
+questiononeEUA1$grid <- factor(questiononeEUA1$grid)
+questiononeEUA1$cell <- factor(questiononeEUA1$cell)
+questiononeEUA1$before_after <- factor(questiononeEUA1$before_after)
+
+abandonedEUA <- lmer(log(average) ~ before_after + (1|grid/cell), data = questiononeEUA1)
+summary(abandonedEUA)
+
+r.squaredGLMM(abandonedEUA)
+plot(abandonedEUA)
+plot(questiononeEUA$average, log = "y")
+qqnorm(resid(abandonedEUA)) 
+qqline(resid(abandonedEUA))
+
+exp(-0.03249)
+
+
+
+
+
+# ACTUALLY Q1 ----
+# looking at the change in land-use ACROSS the country before and after SPE events 
+# categories of 3 years before and 3 years after 
+# group by class and get the mean area for each period 
+# is there a signal caused by the SPE event? 
+# separate model for each land use type for each event - 6 models 
+# cell as is now can't be random effect -- there is only one value in each cell! 
+# SO need to make bigger cells that the smaller cells can be nested into - can
+# do this manually by aggregating cells 
+# mean ~ before_after + (1|cell/big_cell) - model for each class for each land-use type
+# delete all 0s besides the ones that have a value for the other time period - need those
+
+
+
+
+
+
+# ACTUALLY Q2 ----
+# pick transitions that fit with my story and the results of Q1 
+# separate model for each event and transition - same as before 
+
+# Q2 A--I: SUC ----
+questiontwoSUC1 <- questiontwoSUC %>%
+  dplyr::filter(transition == 1)
+
+questiontwoSUC1$grid <- factor(questiontwoSUC1$grid)
+questiontwoSUC1$cell <- factor(questiontwoSUC1$cell)
+questiontwoSUC1$before_after <- factor(questiontwoSUC1$before_after)
+
+atoiSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoSUC1)
+summary(atoiSUC)
+
+r.squaredGLMM(atoiSUC)
+
+hist(questiontwoSUC1$average)
+plot(atoiSUC)
+qqnorm(resid(atoiSUC)) 
+qqline(resid(atoiSUC)) # meets assumptions!!!!
+
+# Q2 A--I: EUA ----
+questiontwoEUA1 <- questiontwoEUA %>%
+  dplyr::filter(transition == 1)
+
+questiontwoEUA1$grid <- factor(questiontwoEUA1$grid)
+questiontwoEUA1$cell <- factor(questiontwoEUA1$cell)
+questiontwoEUA1$before_after <- factor(questiontwoEUA1$before_after)
+
+atoiEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoEUA1)
+summary(atoiEUA)
+
+r.squaredGLMM(atoiEUA)
+
+hist(questiontwoEUA1$average)
+plot(atoiEUA)
+qqnorm(resid(atoiEUA)) 
+qqline(resid(atoiEUA)) # meets assumptions!!!!
+
+# Q2 E -- I: SUC ----
+questiontwoSUC4 <- questiontwoSUC %>%
+  dplyr::filter(transition == 4)
+
+questiontwoSUC4$grid <- factor(questiontwoSUC4$grid)
+questiontwoSUC4$cell <- factor(questiontwoSUC4$cell)
+questiontwoSUC4$before_after <- factor(questiontwoSUC4$before_after)
+
+etoiSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoSUC4)
+summary(etoiSUC)
+
+r.squaredGLMM(etoiSUC)
+
+hist(questiontwoSUC1$average)
+plot(atoiSUC)
+qqnorm(resid(atoiSUC)) 
+qqline(resid(atoiSUC)) # meets assumptions!!!!
+
+# Q2 E -- I: EUA ----
+questiontwoEUA4 <- questiontwoEUA %>%
+  dplyr::filter(transition == 4)
+
+questiontwoEUA4$grid <- factor(questiontwoEUA4$grid)
+questiontwoEUA4$cell <- factor(questiontwoEUA4$cell)
+questiontwoEUA4$before_after <- factor(questiontwoEUA4$before_after)
+
+etoiEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoEUA4)
+summary(etoiEUA)
+
+r.squaredGLMM(etoiEUA)
+
+hist(questiontwoEUA4$average)
+plot(etoiEUA)
+qqnorm(resid(etoiEUA)) 
+qqline(resid(etoiEUA)) # meets assumptions!!!!
+
+
+# Q2 I to E: SUC ----
+questiontwoSUC6 <- questiontwoSUC %>%
+  dplyr::filter(transition == 6)
+
+questiontwoSUC6$grid <- factor(questiontwoSUC6$grid)
+questiontwoSUC6$cell <- factor(questiontwoSUC6$cell)
+questiontwoSUC6$before_after <- factor(questiontwoSUC6$before_after)
+
+itoeSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoSUC6)
+summary(itoeSUC)
+
+r.squaredGLMM(itoeSUC)
+
+hist(questiontwoSUC6$average)
+plot(itoeSUC)
+qqnorm(resid(itoeSUC)) 
+qqline(resid(itoeSUC)) # meets assumptions!!!!
+
+# Q2 I to E: EUA ----
+questiontwoEUA6 <- questiontwoEUA %>%
+  dplyr::filter(transition == 6)
+
+questiontwoEUA6$grid <- factor(questiontwoEUA6$grid)
+questiontwoEUA6$cell <- factor(questiontwoEUA6$cell)
+questiontwoEUA6$before_after <- factor(questiontwoEUA6$before_after)
+
+itoeEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoEUA6)
+summary(itoeEUA)
+
+r.squaredGLMM(itoeEUA)
+
+hist(questiontwoEUA6$average)
+plot(itoeEUA)
+qqnorm(resid(itoeEUA)) 
+qqline(resid(itoeEUA)) # meets assumptions!!!!
+
+
+# Q2 I to A: SUC ----
+questiontwoSUC5 <- questiontwoSUC %>%
+  dplyr::filter(transition == 5)
+
+questiontwoSUC5$grid <- factor(questiontwoSUC5$grid)
+questiontwoSUC5$cell <- factor(questiontwoSUC5$cell)
+questiontwoSUC5$before_after <- factor(questiontwoSUC5$before_after)
+
+itoaSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoSUC5)
+summary(itoaSUC)
+
+r.squaredGLMM(itoaSUC)
+
+hist(questiontwoSUC5$average)
+plot(itoaSUC)
+qqnorm(resid(itoaSUC)) 
+qqline(resid(itoaSUC)) # meets assumptions!!!!
+
+# Q2 I to A: EUA ----
+questiontwoEUA5 <- questiontwoEUA %>%
+  dplyr::filter(transition == 5)
+
+questiontwoEUA5$grid <- factor(questiontwoEUA5$grid)
+questiontwoEUA5$cell <- factor(questiontwoEUA5$cell)
+questiontwoEUA5$before_after <- factor(questiontwoEUA5$before_after)
+
+itoaEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoEUA5)
+summary(itoaEUA)
+
+r.squaredGLMM(itoaEUA)
+
+hist(questiontwoEUA5$average)
+plot(itoaEUA)
+qqnorm(resid(itoaEUA)) 
+qqline(resid(itoaEUA)) # meets assumptions!!!!
+
+
+# ACTUALLY Q3 ----
+# pick transitions/classes carefully -- if there's loads of zeros probably shows that it isn't important
+# moving window analysis where you have same model, same before time period but new afters
+# 1 & 2 years after, 2 & 3 years after etc. 
+# new model for each window and each transition/class 
+# break point analysis? 
+
+# Q3 abandoned
+
+abandonedlag <- detailedA %>%
+  dplyr::select(-c(pixels, years_since)) %>%
+  filter(class == "1") %>%
+  group_by(year, grid) %>%
+  summarise(year_total = sum(area)/1000)
+
+(startfiga <- ggplot(abandonedlag, aes(year, y = year_total, colour = grid)) 
+  + geom_line()
+  + labs(x = "Time (year)", y = "Total area (km2)"))
+
+
+abandonedlm <- lm(year_total ~ year, data = abandonedlag) # should be mixed effects?
+summary(abandonedlm)
+
+
+abandonedseg <- segmented(abandonedlm,
+                          seg.Z = ~ year,
+                          psi = list(year = c(1991, 2004)))
+
+summary(abandonedseg)
+
+# breakpoints
+abandonedseg$psi
+
+slope(abandonedseg)
+
+abandonedfit <- fitted(abandonedseg)
+abandonedmodel <- data.frame(year = abandonedlag$year, area = abandonedfit)
+
+ggplot(abandonedmodel, aes(x = year, y = area)) + geom_line()
+
+abandonedlines <- abandonedseg$psi[, 1]
+
+(startfiga <- ggplot(abandonedlag, aes(year, y = year_total)) +
+    geom_line() +
+    geom_line(data = abandonedmodel, aes(x = year, y = area), colour = "tomato") +
+    geom_vline(xintercept = abandonedlines, linetype = "dashed") +
+    labs(x = "Time (year)", y = "Total area (km2)"))
+
+
 
 
 # data vis
@@ -221,122 +576,6 @@ area3 <- area %>%
 # combine to a panel
 area_panel <- arrangeGrob(area1fig, area2fig, area3fig, ncol = 3, widths = c(1, 1, 1))
 ggsave(file = "images/Q1panelfig.png", area_panel, dpi = 2000, width = 12)
-
-# Q2: Are the strength and direction of land-use change different among extensive,
-# intensive and abandoned land-use types? ----
-
-# histogram
-hist(detailed_transition$area) # left skewed due to lots of zeros -- use poisson? 
-
-# model
-mod2REML <- lmer(area ~ I(year - 1989) + transition + (1|year) + (1|cell), data = detailed_transition)
-summary(mod2REML)
-mod2 <- lmer(area ~ I(year - 1989) + transition + (1|year) + (1|cell), data = detailed_transition, REML = FALSE)
-summary(mod2)
-mod2b <- lmer(area ~ I(year - 1989) + transition + (cell|year), data = detailed_transition, REML = FALSE)
-summary(mod2b) # could not converge
-mod2c <- lmer(area ~ I(year - 1989) + transition + (cell|year) + (1|year) + (1|cell), data = detailed_transition, REML = FALSE)
-summary(mod2c) # could not converge
-mod2d <- lmer(area ~ I(year - 1989) + transition + (1|cell), data = detailed_transition, REML = FALSE)
-summary(mod2d)
-mod2e <- lmer(area ~ I(year - 1989) + transition + (1|year), data = detailed_transition, REML = FALSE)
-summary(mod2e)
-mod2f <- lmer(area ~ I(year - 1989) + transition + event + (1|year) + (1|cell), data = detailed_transition, REML = FALSE)
-summary(mod2f)
-mod2g <- lmer(area ~ I(year - 1989) + transition + previous_class + (1|year) + (1|cell), data = detailed_transition, REML = FALSE)
-summary(mod2g)
-mod2h <- lmer(area ~ I(year - 1989) + transition + previous_class + current_class + (1|year) + (1|cell), data = detailed_transition, REML = FALSE)
-summary(mod2g)
-mod2i <- lmer(area ~ I(year - 1989) + transition +  current_class + (1|year) + (1|cell), data = detailed_transition, REML = FALSE)
-summary(mod2h)
-mod2j <- lmer(area ~ I(year - 1989) + previous_class + current_class + (1|year) + (1|cell), data = detailed_transition, REML = FALSE)
-summary(mod2j)
-
-r.squaredGLMM(mod2) # 0.3306943 0.4201315
-r.squaredGLMM(mod2b)
-r.squaredGLMM(mod2c)
-r.squaredGLMM(mod2d) # 0.3309036 0.4030753
-r.squaredGLMM(mod2e) # 0.3309036 0.3473395
-r.squaredGLMM(mod2f) #0.3314983 0.4201238
-r.squaredGLMM(mod2g) # 0.3329322 0.422532
-r.squaredGLMM(mod2h) # 0.3353278 0.4259556
-r.squaredGLMM(mod2i) # 0.3343533 0.4243897
-r.squaredGLMM(mod2j) # 0.0009591529 0.087430343
-
-AICc(mod2, mod2d, mod2e,mod2f, mod2g, mod2h, mod2i, mod2j)
-# mod2  10 337641.7 # this makes most sense
-# mod2d  9 338051.2
-# mod2e  9 339272.5
-# mod2f 11 337642.7
-# mod2g 11 337583.6
-# mod2h 12 337513.1 # this may be best -- but is it worth the two extra terms?? 
-# mod2i 11 337542.5
-# mod2j  7 345288.2
-
-mod2n <- lmer(area ~ 1 + (1|year) + (1|cell), data = detailed_transition, REML = FALSE)
-summary(mod2n) 
-
-anova(mod2, mod2n) # statistically different 
-
-# visualise 
-stargazer(mod2REML, type = "text",
-          digits = 3,
-          star.cutoffs = c(0.05, 0.01, 0.001),
-          digit.separator = "")
-
-# Set a clean theme for the graphs
-set_theme(base = theme_bw() + 
-            theme(panel.grid.major.x = element_blank(),
-                  panel.grid.minor.x = element_blank(),
-                  panel.grid.minor.y = element_blank(),
-                  panel.grid.major.y = element_blank(),
-                  plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), units = , "cm")))
-
-# Visualises random effects 
-(re.effects <- plot_model(mod2REML, type = "re", show.values = TRUE))
-
-
-# To see the estimate for our fixed effects
-(fe.effects <- plot_model(mod2REML, show.values = TRUE))
-
-# predictions
-ggpredict(mod2REML, terms = c("year")) %>% plot()
-
-predictions <- ggpredict(mod2REML, terms = c("year", "transition"), type = "re") 
-
-(predplot2 <- ggplot(predictions, aes(x = x, y = predicted, colour = group)) +
-    stat_smooth(method = "lm", se = FALSE) + 
-    labs(x = "\nYear since 1989", y = "Predicted area \n") + 
-  scale_y_continuous(limits = c(0, 51000))) 
-
-# assumptions 
-plot(mod2) # not homoscedastic it seems
-qqnorm(resid(mod2)) 
-qqline(resid(mod2)) # very skewed at right end
-
-# linearity 
-# Error in xy.coords(x, y, xlabel, ylabel, log) : 
-# 'x' and 'y' lengths differ
-Linearity2 <- plot(resid(mod2REML), area) 
-
-# homoscedasity - fake levene's test 
-detailed_transition$mod2res<- residuals(mod2REML) #extracts the residuals and places them in a new column in our original data table
-
-detailed_transition$absmodel <-abs(detailed_transition$mod2res) #creates a new column with the absolute value of the residuals
-
-detailed_transition$res2 <- detailed_transition$mod2res^2 #squares the absolute values of the residuals to provide the more robust estimate
-
-Levene.Model.res2 <- lm(res2 ~ year + transition + cell, data=detailed_transition) #ANOVA of the squared residuals
-
-anova(Levene.Model.res2) #displays the results -- all below 0.05 so not equal variances!
-
-# normal distribution 
-require("lattice")
-qqmath(mod1REML, id=0.05) # - some violation 
-
-# need to transform
-modREML2b <- lmer(sqrt(area) ~ I(year - 1989) + transition + (1|year) + (1|cell), data = detailed_transition)
-qqmath(modREML2b, id=0.05) # doesn't improve
 
 # panel figure 
 trans1 <- transition %>%
@@ -431,26 +670,6 @@ levels(transition_graph$transition)[levels(transition_graph$transition)=="6"] <-
           panel.border = element_blank(),
           plot.margin = unit(c(1,1,1,1), units = , "cm")))
 ggsave(file ="images/Q2barfig.png", Q2figure, dpi = 2000)
-
-# Q3: Is there a time lag between socio-economic events and the occurrence of land-use change? 
-# Does this differ between land-use type?
-mod3 <- lm(years_since ~ event + class + 1, data = detailed_area)
-summary(mod3)
-
-
-mod3b <- lm(years_since ~ event + transition + 1, data = detailed_transition)
-summary(mod3b)
-
-# check assumptions
-hist(detailed_area$years_since) # skewed 
-shapiro.test(area$years_since) # 0 p-value .0524 - if use full dataset, can't get value
-bartlett.test(area$years_since, area$event) # p-value 0.0018
-bartlett.test(area$years_since, area$landuse) # p-value 1 both are basically factors
-
-hist(detailed_transition$years_since) # skewed 
-shapiro.test(transition$years_since) # 0 p-value .00028 - if use full dataset, can't get value
-bartlett.test(transition$years_since, transition$event) # p-value 5.603e-05
-bartlett.test(transition$years_since, transition$transition) # p-value 1 both are basically factors
 
 (Q3afigure <- ggplot(area_graph, aes(x = year, y = area, fill = class)) +
     geom_bar(position = position_dodge(), stat = "identity", colour = "black") +
