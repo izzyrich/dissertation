@@ -811,20 +811,30 @@ r.squaredGLMM(itoeSUClag2mod)
 
 
 
-# DATA VIS ATTEMPTS
+# Break point attempt
 abandonedlag <- detailedA %>%
-  dplyr::select(-c(pixels, years_since)) %>%
+  dplyr::select(-c(pixels)) %>%
   filter(class == "1") %>%
-  group_by(year, grid) %>% # maybe not by grid 
+  group_by(year) %>%
   summarise(year_total = sum(area)/1000)
 
-(startfiga <- ggplot(abandonedlag, aes(year, y = year_total, colour = grid)) 
+(startfiga <- ggplot(abandonedlag, aes(year, y = year_total)) 
   + geom_line()
   + labs(x = "Time (year)", y = "Total area (km2)"))
 
 
-abandonedlm <- lm(year_total ~ year, data = abandonedlag) # should be mixed effects?
+abandonedlm <- lm(year_total ~ year, data = abandonedlag) 
 summary(abandonedlm)
+
+
+segmented.mod <- segmented(abandonedlm, seg.Z = ~year, psi=1991)
+summary(segmented.mod)
+
+
+plot(year,year_total, pch=16, ylim=c(1989,2011))
+plot(segmented.mod, add=T)
+
+
 
 
 abandonedseg <- segmented(abandonedlm,
@@ -845,14 +855,28 @@ ggplot(abandonedmodel, aes(x = year, y = area)) + geom_line()
 
 abandonedlines <- abandonedseg$psi[, 1]
 
+abandonedslopes <- coef(abandonedseg)
+
+abandonedb0 <- coef(abandonedseg)[[1]]
+abandonedb1 <- coef(abandonedseg)[[2]]
+abandonedc1 <- coef(abandonedseg)[[2]] + coef(abandonedseg)[[3]]
+abandonedbreak1 <- abandonedseg$psi[[3]]
+abandonedc0 <- abandonedb0 + abandonedb1 * abandonedbreak1 - abandonedc1 * abandonedbreak1
+abandonedd1 <- coef(abandonedseg)[[4]] + abandonedc1
+abandonedbreak2 <- abandonedseg$psi[[4]]
+abandonedd0 <- abandonedc0 + abandonedc1 * abandonedbreak2 - abandonedd1 * abandonedbreak2
+
 (startfiga <- ggplot(abandonedlag, aes(year, y = year_total)) +
     geom_line() +
-    geom_line(data = abandonedmodel, aes(x = year, y = area), colour = "tomato") +
+    geom_line(data = abandonedmodel, aes(x = year, y = area), colour = "blue") +
+    geom_abline(aes(intercept = abandonedb0, slope = abandonedb1, 
+                colour = 'pre SUC')) +
+    geom_abline(aes(intercept = abandonedc0, slope = abandonedc1, 
+                colour = 'post')) +
+    geom_abline(aes(intercept = abandonedd0, slope = abandonedd1, 
+                colour = "post2")) +
     geom_vline(xintercept = abandonedlines, linetype = "dashed") +
     labs(x = "Time (year)", y = "Total area (km2)"))
-
-
-
 
 # data vis
 area_graph <- summarySE(detailed_area, measurevar="area", groupvars=c("year", "class"))
