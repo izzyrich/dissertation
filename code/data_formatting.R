@@ -5037,3 +5037,4 @@ colnames(final_transition)[colnames(final_transition) == "number1"] <- "pixels"
 
 write.csv(final_transition, file = "data/detailed_transition.csv")
 
+
