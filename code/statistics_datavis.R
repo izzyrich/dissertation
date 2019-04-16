@@ -612,6 +612,8 @@ abandonedlag2$before_after <- factor(abandonedlag2$before_after)
 abandonedlag2mod<- lmer(average ~ before_after + (1|grid), data = abandonedlag2)
 summary(abandonedlag2mod)
 
+plot(average ~ before_after, data = abandonedlag2)
+
 r.squaredGLMM(abandonedlag2mod)
 
 abandonedlag3 <- detailedA %>%
