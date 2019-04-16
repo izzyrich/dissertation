@@ -120,32 +120,37 @@ detailedT <- detailed_transition %>%
                                                           cell == 169 | cell == 170 | cell == 171 | cell == 172 | cell == 183 | cell == 184 | cell == 185 |
                                                           cell == 186, "SE", "NA")))))) 
 # before and after in km2
+# Comment from Isla: You had a mistake in the filter call - you have to spell out the 'year ==' bit each time
 questiononeSUC <- detailedA %>%
-  dplyr::filter(year == 1989 | 1990 | 1992 | 1993) %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1992 | year == 1993) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
-  group_by(before_after, grid, class, cell)%>%
+  group_by(before_after, grid, class, cell) %>%
   summarise(average = mean(area)/1000) 
 
-# attempt at percent cover
+# attempt at percent cover 
+# Comment from Isla: so I think for percent cover here you want to devide by 
+# the area of a total cell, rather than the sum of the area of the particular land cover
 questiononeSUCNEW <- detailedA %>%
-  dplyr::filter(year == 1989 | 1990 | 1992 | 1993) %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1992 | year == 1993) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
-  group_by(before_after, grid, cell)%>%
+  group_by(before_after, grid, cell) %>%
   mutate(totalper = sum(area)) %>%
   ungroup() %>%
   mutate(percent_cover = area*100/totalper)
 
 # attempt at percent cover by grid 
+# Comment from Isla: I don't know that it makes sense to do the percent cover by your "regions"
+# that you are calling grid 
 questiononeSUCNEWbygrid <- detailedA %>%
-  dplyr::filter(year == 1989 | 1990 | 1992 | 1993) %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1992 | year == 1993) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
-  group_by(before_after, grid)%>%
+  group_by(before_after, grid) %>%
   mutate(totalper = sum(area)) %>%
   ungroup() %>%
   dplyr::select(-c(cell)) %>%
@@ -157,29 +162,29 @@ questiononeSUCNEWbygrid <- detailedA %>%
 
 # before and after EUA 
 questiononeEUA <- detailedA %>%
-  dplyr::filter(year == 2002 | 2003 | 2005 | 2006) %>%
+  dplyr::filter(year == 2002 | year == 2003 | year == 2005 | year == 2006) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 2002 | year == 2003, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
-  group_by(before_after, grid, class, cell)%>%
+  group_by(before_after, grid, class, cell) %>%
   summarise(average = mean(area)/1000) 
 
 # before and after transition - dates are different cause its transition to the start of the next year
 questiontwoSUC <- detailedT %>%
-  dplyr::filter(year == 1990 | 1991 | 1993 | 1994) %>%
+  dplyr::filter(year == 1990 | year == 1991 | year == 1993 | year == 1994) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1990 | year == 1991, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
-  group_by(before_after, grid, transition, cell)%>%
+  group_by(before_after, grid, transition, cell) %>%
   summarise(average = mean(area)/1000) 
 
 # for EUA
 questiontwoEUA <- detailedT %>%
-  dplyr::filter(year == 2003 | 2004 | 2006 | 2007) %>%
+  dplyr::filter(year == 2003 | year == 2004 | year == 2006 | year == 2007) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 2003 | year == 2004, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
-  group_by(before_after, grid, transition, cell)%>%
+  group_by(before_after, grid, transition, cell) %>%
   summarise(average = mean(area)/1000) 
 
 # ACTUALLY Q1 ----
@@ -211,14 +216,24 @@ questiononeSUC1$grid <- factor(questiononeSUC1$grid)
 questiononeSUC1$cell <- factor(questiononeSUC1$cell)
 questiononeSUC1$before_after <- factor(questiononeSUC1$before_after)
 
-abandonedSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiononeSUC1)
+# model
+abandonedSUC <- lmer(average ~ before_after + (1|grid), data = questiononeSUC1)
 summary(abandonedSUC)
 
-hist(questiononeSUC1$average)
+# Question from Isla: Are there replicates within each cell?  If not then I don't think there should be a cell
+# random effect, just the grid one.
+
+# Graph relationship
+plot(average ~ before_after, data = questiononeSUC1)
+
+#hist(questiononeSUC1$average)
+ggplot(questiononeSUC1,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 qqnorm(resid(abandonedSUC)) 
 qqline(resid(abandonedSUC)) # meets assumptions!!!!
 
 r.squaredGLMM(abandonedSUC)  # 0.006821604 0.8151366
+# Comment from Isla: The first number is the pseudo R2 - which is a very small amount of variance
+# explained by the fixed effect - 0.68% of the variance
 
 # effects into df 
 abandonedSUCef <- effect("before_after", abandonedSUC)
@@ -226,11 +241,10 @@ abandonedSUCdf <- as.data.frame(abandonedSUCef)
 abandonedSUCdf <- abandonedSUCdf %>%
   mutate(class = "abandoned")
 
-# effect size 
+# effect size - the effect sizes are pretty much the same
 ggplot(abandonedSUCdf, aes(x = before_after , y = fit)) + 
   geom_bar(stat="identity") + 
   geom_errorbar(aes(ymin=fit-se, ymax=fit+se), width = 0.2) 
-
 
 # thinking about data vis
 # Set a clean theme for the graphs
@@ -244,16 +258,22 @@ set_theme(base = theme_bw() +
 (fe.effects <- plot_model(abandonedSUC, show.values = TRUE))
 (re.effects <- plot_model(abandonedSUC, type = "re", show.values = TRUE))
 
-# predictions
+# predictions - pretty much the same
 ggpredict(abandonedSUC, terms = c("before_after")) %>% plot()
 
 ggpredict(abandonedSUC, terms = c("before_after", "grid", "cell"), type = "re") %>% plot()
 
-
+# figure
 (ggplot(questiononeSUC1,aes(x=before_after,y=average))+
     geom_point()+
     geom_line(aes(group=cell))+  ## connect subjects with a line
     facet_grid(.~grid) )                     ## squash together
+
+# Comment from Isla: You could model this by putting region in as a fixed effect in your model above
+
+# statistical model
+abandonedSUC_region <- lm(average ~ before_after + grid, data = questiononeSUC1)
+summary(abandonedSUC_region)
 
 # trying coding club tutorial
 abandonedSUCdf <- tidy(abandonedSUC)
@@ -272,13 +292,14 @@ questiononeSUC2$grid <- factor(questiononeSUC2$grid)
 questiononeSUC2$cell <- factor(questiononeSUC2$cell)
 questiononeSUC2$before_after <- factor(questiononeSUC2$before_after)
 
-
-extensiveSUC <- lmer(prop ~ before_after + (1|grid/cell), data = questiononeSUC2)
+# statistical model
+extensiveSUC <- lmer(percent_cover ~ before_after + (1|grid), data = questiononeSUC2)
 summary(extensiveSUC)
 
 r.squaredGLMM(extensiveSUC)
 
-hist(questiononeSUC2$average)
+#hist(questiononeSUC2$totalper)
+ggplot(questiononeSUC2,aes(x=totalper))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(extensiveSUC)
 qqnorm(resid(extensiveSUC)) 
 qqline(resid(extensiveSUC)) # meets assumptions!!!!
@@ -297,12 +318,13 @@ questiononeEUA2$grid <- factor(questiononeEUA2$grid)
 questiononeEUA2$cell <- factor(questiononeEUA2$cell)
 questiononeEUA2$before_after <- factor(questiononeEUA2$before_after)
 
-extensiveEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiononeEUA2)
+extensiveEUA <- lmer(average ~ before_after + (1|grid), data = questiononeEUA2)
 summary(extensiveEUA)
 
 r.squaredGLMM(extensiveEUA)
 
-hist(questiononeEUA2$average)
+#hist(questiononeEUA2$average)
+ggplot(questiononeEUA2,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(extensiveEUA)
 qqnorm(resid(extensiveEUA)) 
 qqline(resid(extensiveEUA)) # meets assumptions!!!!
@@ -315,12 +337,13 @@ questiononeSUC3$grid <- factor(questiononeSUC3$grid)
 questiononeSUC3$cell <- factor(questiononeSUC3$cell)
 questiononeSUC3$before_after <- factor(questiononeSUC3$before_after)
 
-intensiveSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiononeSUC3)
+intensiveSUC <- lmer(area ~ before_after + (1|grid), data = questiononeSUC3)
 summary(intensiveSUC)
 
 r.squaredGLMM(intensiveSUC)
 
-hist(questiononeSUC3$average)
+#hist(questiononeSUC3$area)
+ggplot(questiononeSUC3,aes(x=area))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(intensiveSUC)
 qqnorm(resid(intensiveSUC)) 
 qqline(resid(intensiveSUC)) # meets assumptions!!!!
@@ -344,12 +367,13 @@ questiononeEUA3$grid <- factor(questiononeEUA3$grid)
 questiononeEUA3$cell <- factor(questiononeEUA3$cell)
 questiononeEUA3$before_after <- factor(questiononeEUA3$before_after)
 
-intensiveEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiononeEUA3)
+intensiveEUA <- lmer(average ~ before_after + (1|grid), data = questiononeEUA3)
 summary(intensiveEUA)
 
 r.squaredGLMM(intensiveEUA)
 
-hist(questiononeEUA3$average)
+#hist(questiononeEUA3$average)
+ggplot(questiononeEUA3,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(intensiveEUA)
 qqnorm(resid(intensiveEUA)) 
 qqline(resid(intensiveEUA)) # meets assumptions!!!!
@@ -362,8 +386,10 @@ questiononeEUA1$grid <- factor(questiononeEUA1$grid)
 questiononeEUA1$cell <- factor(questiononeEUA1$cell)
 questiononeEUA1$before_after <- factor(questiononeEUA1$before_after)
 
-abandonedEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiononeEUA1)
+abandonedEUA <- lmer(average ~ before_after + (1|grid), data = questiononeEUA1)
 summary(abandonedEUA)
+
+plot(average ~ before_after, data = questiononeEUA1)
 
 r.squaredGLMM(abandonedEUA)
 plot(abandonedEUA)
@@ -409,12 +435,13 @@ questiontwoSUC1$grid <- factor(questiontwoSUC1$grid)
 questiontwoSUC1$cell <- factor(questiontwoSUC1$cell)
 questiontwoSUC1$before_after <- factor(questiontwoSUC1$before_after)
 
-atoiSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoSUC1)
+atoiSUC <- lmer(average ~ before_after + (1|grid), data = questiontwoSUC1)
 summary(atoiSUC)
 
 r.squaredGLMM(atoiSUC)
 
-hist(questiontwoSUC1$average)
+#hist(questiontwoSUC1$average)
+ggplot(questiontwoSUC1,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(atoiSUC)
 qqnorm(resid(atoiSUC)) 
 qqline(resid(atoiSUC)) # meets assumptions!!!!
@@ -427,12 +454,15 @@ questiontwoEUA1$grid <- factor(questiontwoEUA1$grid)
 questiontwoEUA1$cell <- factor(questiontwoEUA1$cell)
 questiontwoEUA1$before_after <- factor(questiontwoEUA1$before_after)
 
-atoiEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoEUA1)
+atoiEUA <- lmer(average ~ before_after + (1|grid), data = questiontwoEUA1)
 summary(atoiEUA)
+
+plot(average ~ before_after, data = questiontwoEUA1)
 
 r.squaredGLMM(atoiEUA)
 
-hist(questiontwoEUA1$average)
+#hist(questiontwoEUA1$average)
+ggplot(questiontwoEUA1,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(atoiEUA)
 qqnorm(resid(atoiEUA)) 
 qqline(resid(atoiEUA)) # meets assumptions!!!!
@@ -445,12 +475,15 @@ questiontwoSUC4$grid <- factor(questiontwoSUC4$grid)
 questiontwoSUC4$cell <- factor(questiontwoSUC4$cell)
 questiontwoSUC4$before_after <- factor(questiontwoSUC4$before_after)
 
-etoiSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoSUC4)
+etoiSUC <- lmer(average ~ before_after + (1|grid), data = questiontwoSUC4)
 summary(etoiSUC)
+
+plot(average ~ before_after, data = questiontwoSUC4)
 
 r.squaredGLMM(etoiSUC)
 
-hist(questiontwoSUC1$average)
+#hist(questiontwoSUC1$average)
+ggplot(questiontwoSUC1,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(atoiSUC)
 qqnorm(resid(atoiSUC)) 
 qqline(resid(atoiSUC)) # meets assumptions!!!!
@@ -463,12 +496,13 @@ questiontwoEUA4$grid <- factor(questiontwoEUA4$grid)
 questiontwoEUA4$cell <- factor(questiontwoEUA4$cell)
 questiontwoEUA4$before_after <- factor(questiontwoEUA4$before_after)
 
-etoiEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoEUA4)
+etoiEUA <- lmer(average ~ before_after + (1|grid), data = questiontwoEUA4)
 summary(etoiEUA)
 
 r.squaredGLMM(etoiEUA)
 
-hist(questiontwoEUA4$average)
+#hist(questiontwoEUA4$average)
+ggplot(questiontwoEUA4,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(etoiEUA)
 qqnorm(resid(etoiEUA)) 
 qqline(resid(etoiEUA)) # meets assumptions!!!!
@@ -482,12 +516,13 @@ questiontwoSUC6$grid <- factor(questiontwoSUC6$grid)
 questiontwoSUC6$cell <- factor(questiontwoSUC6$cell)
 questiontwoSUC6$before_after <- factor(questiontwoSUC6$before_after)
 
-itoeSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoSUC6)
+itoeSUC <- lmer(average ~ before_after + (1|grid), data = questiontwoSUC6)
 summary(itoeSUC)
 
 r.squaredGLMM(itoeSUC)
 
-hist(questiontwoSUC6$average)
+#hist(questiontwoSUC6$average)
+ggplot(questiontwoSUC6,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(itoeSUC)
 qqnorm(resid(itoeSUC)) 
 qqline(resid(itoeSUC)) # meets assumptions!!!!
@@ -500,12 +535,13 @@ questiontwoEUA6$grid <- factor(questiontwoEUA6$grid)
 questiontwoEUA6$cell <- factor(questiontwoEUA6$cell)
 questiontwoEUA6$before_after <- factor(questiontwoEUA6$before_after)
 
-itoeEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoEUA6)
+itoeEUA <- lmer(average ~ before_after + (1|grid), data = questiontwoEUA6)
 summary(itoeEUA)
 
 r.squaredGLMM(itoeEUA)
 
-hist(questiontwoEUA6$average)
+#hist(questiontwoEUA6$average)
+ggplot(questiontwoEUA6,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(itoeEUA)
 qqnorm(resid(itoeEUA)) 
 qqline(resid(itoeEUA)) # meets assumptions!!!!
@@ -519,12 +555,13 @@ questiontwoSUC5$grid <- factor(questiontwoSUC5$grid)
 questiontwoSUC5$cell <- factor(questiontwoSUC5$cell)
 questiontwoSUC5$before_after <- factor(questiontwoSUC5$before_after)
 
-itoaSUC <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoSUC5)
+itoaSUC <- lmer(average ~ before_after + (1|grid), data = questiontwoSUC5)
 summary(itoaSUC)
 
 r.squaredGLMM(itoaSUC)
 
-hist(questiontwoSUC5$average)
+#hist(questiontwoSUC5$average)
+ggplot(questiontwoSUC5,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(itoaSUC)
 qqnorm(resid(itoaSUC)) 
 qqline(resid(itoaSUC)) # meets assumptions!!!!
@@ -537,12 +574,13 @@ questiontwoEUA5$grid <- factor(questiontwoEUA5$grid)
 questiontwoEUA5$cell <- factor(questiontwoEUA5$cell)
 questiontwoEUA5$before_after <- factor(questiontwoEUA5$before_after)
 
-itoaEUA <- lmer(average ~ before_after + (1|grid/cell), data = questiontwoEUA5)
+itoaEUA <- lmer(average ~ before_after + (1|grid), data = questiontwoEUA5)
 summary(itoaEUA)
 
 r.squaredGLMM(itoaEUA)
 
-hist(questiontwoEUA5$average)
+#hist(questiontwoEUA5$average)
+ggplot(questiontwoEUA5,aes(x=average))+geom_histogram()+facet_grid(~before_after)+theme_bw()
 plot(itoaEUA)
 qqnorm(resid(itoaEUA)) 
 qqline(resid(itoaEUA)) # meets assumptions!!!!
@@ -558,7 +596,7 @@ qqline(resid(itoaEUA)) # meets assumptions!!!!
 # Q3 abandoned
 
 abandonedlag2 <- detailedA %>%
-  dplyr::filter(year == 1989 | 1990 | 1994 | 1995) %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1994 | year == 1995) %>%
   dplyr::filter(class == "1") %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
@@ -571,13 +609,13 @@ abandonedlag2$cell <- factor(abandonedlag2$cell)
 abandonedlag2$before_after <- factor(abandonedlag2$before_after)
 
 
-abandonedlag2mod<- lmer(average ~ before_after + (1|grid/cell), data = abandonedlag2)
+abandonedlag2mod<- lmer(average ~ before_after + (1|grid), data = abandonedlag2)
 summary(abandonedlag2mod)
 
 r.squaredGLMM(abandonedlag2mod)
 
 abandonedlag3 <- detailedA %>%
-  dplyr::filter(year == 1989 | 1990 | 1996 | 1997) %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1996 | year == 1997) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -590,14 +628,14 @@ abandonedlag3$cell <- factor(abandonedlag3$cell)
 abandonedlag3$before_after <- factor(abandonedlag3$before_after)
 
 
-abandonedlag3mod <- lmer(average ~ before_after + (1|grid/cell), data = abandonedlag3)
+abandonedlag3mod <- lmer(average ~ before_after + (1|grid), data = abandonedlag3)
 summary(abandonedlag3mod)
 
 r.squaredGLMM(abandonedlag3mod)
 
 
 extensivelag2 <- detailedA %>%
-  dplyr::filter(year == 1989 | 1990 | 1994 | 1995) %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1994 | year == 1995) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -610,13 +648,13 @@ extensivelag2$cell <- factor(extensivelag2$cell)
 extensivelag2$before_after <- factor(extensivelag2$before_after)
 
 
-extensivelag2mod <- lmer(average ~ before_after + (1|grid/cell), data = extensivelag2)
+extensivelag2mod <- lmer(average ~ before_after + (1|grid), data = extensivelag2)
 summary(extensivelag2mod)
 
 r.squaredGLMM(extensivelag2mod)
 
 extensivelag3 <- detailedA %>%
-  dplyr::filter(year == 1989 | 1990 | 1996 | 1997) %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1996 | year == 1997) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -629,13 +667,13 @@ extensivelag3$cell <- factor(extensivelag3$cell)
 extensivelag3$before_after <- factor(extensivelag3$before_after)
 
 
-extensivelag3mod<- lmer(average ~ before_after + (1|grid/cell), data = extensivelag3)
+extensivelag3mod<- lmer(average ~ before_after + (1|grid), data = extensivelag3)
 summary(extensivelag3mod)
 
 r.squaredGLMM(extensivelag3mod)
 
 intensivelag2 <- detailedA %>%
-  dplyr::filter(year == 1989 | 1990 | 1994 | 1995) %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1994 | year == 1995) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -648,13 +686,13 @@ intensivelag2$cell <- factor(intensivelag2$cell)
 intensivelag2$before_after <- factor(intensivelag2$before_after)
 
 
-intensivelag2mod <- lmer(average ~ before_after + (1|grid/cell), data = intensivelag2)
+intensivelag2mod <- lmer(average ~ before_after + (1|grid), data = intensivelag2)
 summary(intensivelag2mod)
 
 r.squaredGLMM(intensivelag2mod)
 
 intensivelag3 <- detailedA %>%
-  dplyr::filter(year == 1989 | 1990 | 1996 | 1997) %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1996 | year == 1997) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1989 | year == 1990, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -667,14 +705,14 @@ intensivelag3$cell <- factor(intensivelag3$cell)
 intensivelag3$before_after <- factor(intensivelag3$before_after)
 
 
-intensivelag3mod<- lmer(average ~ before_after + (1|grid/cell), data = intensivelag3)
+intensivelag3mod<- lmer(average ~ before_after + (1|grid), data = intensivelag3)
 summary(intensivelag3mod)
 
 r.squaredGLMM(intensivelag3mod)
 
 # this gives different results!
 atoiEUAprelag1 <- detailedT %>%
-  dplyr::filter(year ==  2001 | 2002 | 2005 | 2006 ) %>%
+  dplyr::filter(year ==  2001 | year == 2002 | year == 2005 | year == 2006 ) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 2001 | year == 2002, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -686,7 +724,7 @@ atoiEUAprelag1$grid <- factor(atoiEUAprelag1$grid)
 atoiEUAprelag1$cell <- factor(atoiEUAprelag1$cell)
 atoiEUAprelag1$before_after <- factor(atoiEUAprelag1$before_after)
 
-atoiEUAprelag1mod<- lmer(average ~ before_after + (1|grid/cell), data = atoiEUAprelag1)
+atoiEUAprelag1mod<- lmer(average ~ before_after + (1|grid), data = atoiEUAprelag1)
 summary(atoiEUAprelag1mod)
 
 r.squaredGLMM(atoiEUAprelag1mod)
@@ -694,7 +732,7 @@ r.squaredGLMM(atoiEUAprelag1mod)
 
 
 atoiEUAlag1 <- detailedT %>%
-  dplyr::filter(year == 2003 | 2004 | 2008 | 2009) %>%
+  dplyr::filter(year == 2003 | year == 2004 | year == 2008 | year == 2009) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 2003 | year == 2004, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -706,14 +744,14 @@ atoiEUAlag1$grid <- factor(atoiEUAlag1$grid)
 atoiEUAlag1$cell <- factor(atoiEUAlag1$cell)
 atoiEUAlag1$before_after <- factor(atoiEUAlag1$before_after)
 
-atoiEUAlag1mod<- lmer(average ~ before_after + (1|grid/cell), data = atoiEUAlag1)
+atoiEUAlag1mod<- lmer(average ~ before_after + (1|grid), data = atoiEUAlag1)
 summary(atoiEUAlag1mod)
 
 r.squaredGLMM(atoiEUAlag1mod)
 
 
 atoiEUAlag2 <- detailedT %>%
-  dplyr::filter(year == 2003 | 2004 | 2010 | 2011) %>%
+  dplyr::filter(year == 2003 | year == 2004 | year == 2010 | year == 2011) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 2003 | year == 2004, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -725,13 +763,13 @@ atoiEUAlag2$grid <- factor(atoiEUAlag2$grid)
 atoiEUAlag2$cell <- factor(atoiEUAlag2$cell)
 atoiEUAlag2$before_after <- factor(atoiEUAlag2$before_after)
 
-atoiEUAlag2mod<- lmer(average ~ before_after + (1|grid/cell), data = atoiEUAlag2)
+atoiEUAlag2mod<- lmer(average ~ before_after + (1|grid), data = atoiEUAlag2)
 summary(atoiEUAlag2mod)
 
 r.squaredGLMM(atoiEUAlag2mod)
 
 itoaSUClag1 <- detailedT %>%
-  dplyr::filter(year == 1990 | 1991 | 1995 | 1996) %>%
+  dplyr::filter(year == 1990 | year == 1991 | year == 1995 | year == 1996) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1990 | year == 1991, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -744,14 +782,14 @@ itoaSUClag1$grid <- factor(itoaSUClag1$grid)
 itoaSUClag1$cell <- factor(itoaSUClag1$cell)
 itoaSUClag1$before_after <- factor(itoaSUClag1$before_after)
 
-itoaSUClag1mod<- lmer(average ~ before_after + (1|grid/cell), data = itoaSUClag1)
+itoaSUClag1mod<- lmer(average ~ before_after + (1|grid), data = itoaSUClag1)
 summary(itoaSUClag1mod)
 
 r.squaredGLMM(atoiEUAlag1mod)
 
 
 itoaSUClag2 <- detailedT %>%
-  dplyr::filter(year == 1990 | 1991 | 1997 | 1998) %>%
+  dplyr::filter(year == 1990 | year == 1991 | year == 1997 | year == 1998) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1990 | year == 1991, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -764,14 +802,14 @@ itoaSUClag2$grid <- factor(itoaSUClag2$grid)
 itoaSUClag2$cell <- factor(itoaSUClag2$cell)
 itoaSUClag2$before_after <- factor(itoaSUClag2$before_after)
 
-itoaSUClag2mod<- lmer(average ~ before_after + (1|grid/cell), data = itoaSUClag2)
+itoaSUClag2mod<- lmer(average ~ before_after + (1|grid), data = itoaSUClag2)
 summary(itoaSUClag2mod)
 
 r.squaredGLMM(atoiEUAlag2mod)
 
 
 itoeSUClag1 <- detailedT %>%
-  dplyr::filter(year == 1990 | 1991 | 1995 | 1996) %>%
+  dplyr::filter(year == 1990 | year == 1991 | year == 1995 | year == 1996) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1990 | year == 1991, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -784,14 +822,14 @@ itoeSUClag1$grid <- factor(itoeSUClag1$grid)
 itoeSUClag1$cell <- factor(itoeSUClag1$cell)
 itoeSUClag1$before_after <- factor(itoeSUClag1$before_after)
 
-itoeSUClag1mod<- lmer(average ~ before_after + (1|grid/cell), data = itoeSUClag1)
+itoeSUClag1mod<- lmer(average ~ before_after + (1|grid), data = itoeSUClag1)
 summary(itoeSUClag1mod)
 
 r.squaredGLMM(itoeSUClag1mod)
 
 
 itoeSUClag2 <- detailedT %>%
-  dplyr::filter(year == 1990 | 1991 | 1997 | 1998) %>%
+  dplyr::filter(year == 1990 | year == 1991 | year == 1997 | year == 1998) %>%
   dplyr::select(-c(pixels)) %>%
   mutate(before_after = ifelse(year == 1990 | year == 1991, "first", "second")) %>%
   dplyr::select(-c(year)) %>%
@@ -804,7 +842,7 @@ itoeSUClag2$grid <- factor(itoeSUClag2$grid)
 itoeSUClag2$cell <- factor(itoeSUClag2$cell)
 itoeSUClag2$before_after <- factor(itoeSUClag2$before_after)
 
-itoeSUClag2mod<- lmer(average ~ before_after + (1|grid/cell), data = itoeSUClag2)
+itoeSUClag2mod<- lmer(average ~ before_after + (1|grid), data = itoeSUClag2)
 summary(itoeSUClag2mod)
 
 r.squaredGLMM(itoeSUClag2mod)
