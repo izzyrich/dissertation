@@ -1040,7 +1040,7 @@ plot(segmented.mod, add=T)
 
 abandonedseg <- segmented(abandonedlm,
                           seg.Z = ~ year,
-                          psi = list(year = c(1991, 2004)))
+                          psi = list(year = c(1993, 2004)))
 
 summary(abandonedseg)
 
