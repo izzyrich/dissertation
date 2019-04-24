@@ -944,7 +944,7 @@ intensiveseglag <- detailedA %>%
 intensivelm <- lm(year_total ~ year, data = intensiveseglag) 
 summary(intensivelm)
 
-intensivemod <- segmented(intensivelm, seg.Z = ~year, psi = list(year = c(1991,2004)))
+intensivemod <- segmented(intensivelm, seg.Z = ~year, psi = list(year = c(1993,2004)))
 summary(intensivemod)
 
 intensivefit <- fitted(intensivemod)
@@ -1022,7 +1022,7 @@ itoeseglag <- detailedT %>%
 itoelm <- lm(year_total ~ year, data = itoeseglag) 
 summary(itoelm)
 
-itoemod <- segmented(itoelm, seg.Z = ~year, psi = list(year = c(1995,2004)))
+itoemod <- segmented(itoelm, seg.Z = ~year, psi = list(year = c(1994,2004)))
 summary(itoemod)
 
 itoefit <- fitted(itoemod)
@@ -1060,7 +1060,7 @@ etoiseglag <- detailedT %>%
 etoilm <- lm(year_total ~ year, data = etoiseglag) 
 summary(etoilm)
 
-etoimod <- segmented(etoilm, seg.Z = ~year, psi = list(year = c(1993,2004)))
+etoimod <- segmented(etoilm, seg.Z = ~year, psi = list(year = c(1994,2004)))
 summary(etoimod)
 
 etoifit <- fitted(etoimod)

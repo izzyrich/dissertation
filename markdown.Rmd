@@ -1,0 +1,405 @@
+---
+title: "diss"
+author: "me"
+date: "4/22/2019"
+output: word_document
+mainfont: Arial 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, results = "hide", warning = FALSE, error = FALSE, message = FALSE}
+# Load packages
+library(readr)
+library(tidyverse)
+library(rgdal)
+library(sp)
+library(raster)
+library(sf)
+library(rworldmap)
+library(grid)
+library(rworldxtra)
+library(stringr)
+library(maptools)
+library(tiff)
+library(dggridR)
+library(modeest)
+library(lme4)
+library(MuMIn)
+library(lmerTest)
+library(segmented)
+library(effects)
+library(scales)
+library(gridExtra)
+
+# Import base dataset 
+lucas <- read_csv("data/2012_lucas.csv")
+
+# LATVIA BORDER and POLY ----
+
+# get data 
+latvia <- raster::getData("GADM", country = "LVA", level = 0)
+
+# change projection
+latvia <- spTransform(latvia, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+
+# create polygon
+data = data.frame(f=99.9)
+spdf = SpatialPolygonsDataFrame(latvia, data)
+shapefile(spdf, "data/latvia_poly", overwrite = TRUE)
+
+# format data
+map <- fortify(latvia)%>%
+  dplyr::select(long, lat) 
+colnames(map)[colnames(map) == "lat"] <- "LAT"
+colnames(map)[colnames(map) == "long"] <- "LONG"
+
+# set CRS and transform
+coordinates(map) <- c("LONG", "LAT")
+proj4string(map) <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+border_points <- spTransform(map, "+proj=longlat +ellps=WGS84 +datum=WGS84 +init=epsg:3857")
+r_border <- raster(border_points) # border as raster
+
+## ABANDONED LAND ----
+
+# filter for abandoned land
+U112_options <- c("10", "20") # stated that these were abandoned agricultural areas
+U410_options <- c("B", "C", "D", "E", "F") # classes that could be agriculture in U410 (natural terrestrial areas)
+
+lucas_filtered <- lucas %>% 
+  separate(LC1, into = c('class', 'number'), sep = 1) %>%
+  filter(LU1 == "U410" & class %in% U410_options |
+           LU1 == "U112" & class == "D" & number %in% U112_options |
+            LU1 == "U420" & class == "E" & number == "30") %>%
+  dplyr::select(GPS_LAT, GPS_LONG) %>% # potentially need elevation here??
+  mutate(class = "1") %>%
+  mutate(name = "abandoned")
+
+# write to csv 
+write.csv(lucas_filtered, file = "data/lucas_2012_filtered.csv")
+```
+
+```{r, results = "hide", warning = FALSE, error = FALSE, message = FALSE}
+# TOTAL AREA ----
+
+# import data 1989 ----
+data <- read_csv("~/Documents/Edinburgh Year 4/dissertation/data/classified_1989.csv")
+
+# format ----
+new <- data %>%
+  separate(groups, into = c('class0', 'number0', 
+                            'class1', 'number1', 
+                            'class2', 'number2', 
+                            'class3', 'number3', 
+                            'class4', 'number4', 
+                            'class5', 'number5', 
+                            'class6', 'number6'), sep = ",") 
+
+new$class0 <- gsub("[^0-9.-]", "", new$class0)
+new$number0 <- gsub("[^0-9.-]", "", new$number0)
+new$class1 <- gsub("[^0-9.-]", "", new$class1)
+new$number1 <- gsub("[^0-9.-]", "", new$number1)
+new$class2 <- gsub("[^0-9.-]", "", new$class2)
+new$number2 <- gsub("[^0-9.-]", "", new$number2)
+new$class3 <- gsub("[^0-9.-]", "", new$class3)
+new$number3 <- gsub("[^0-9.-]", "", new$number3)
+new$class4 <- gsub("[^0-9.-]", "", new$class4)
+new$number4 <- gsub("[^0-9.-]", "", new$number4)
+new$class5 <- gsub("[^0-9.-]", "", new$class5)
+new$number5 <- gsub("[^0-9.-]", "", new$number5)
+new$class6 <- gsub("[^0-9.-]", "", new$class6)
+new$number6 <- gsub("[^0-9.-]", "", new$number6)
+
+new$number0 <- as.numeric(new$number0)
+new$number1 <- as.numeric(new$number1)
+new$number2 <- as.numeric(new$number2)
+new$number3 <- as.numeric(new$number3)
+new$number4 <- as.numeric(new$number4)
+new$number5 <- as.numeric(new$number5)
+new$number6 <- as.numeric(new$number6)
+
+delete89 <- new %>%
+  dplyr::select(-c(.geo, `system:index`))
+
+new_df89 <- bind_rows(
+  delete89 %>% dplyr::select(label, class = class0, pixels = number0),
+  delete89 %>% dplyr::select(label, class = class1, pixels = number1),
+  delete89 %>% dplyr::select(label, class = class2, pixels = number2),
+  delete89 %>% dplyr::select(label, class = class3, pixels = number3),
+  delete89 %>% dplyr::select(label, class = class4, pixels = number4),
+  delete89 %>% dplyr::select(label, class = class5, pixels = number5),
+  delete89 %>% dplyr::select(label, class = class6, pixels = number6)
+) %>%
+  mutate(area = pixels*30) %>%
+  mutate(year = 1989)
+  
+
+# get sum of all regions for each class and input into excel -----
+sum(new$number0,na.rm=TRUE)
+sum(new$number1,na.rm=TRUE)
+sum(new$number2,na.rm=TRUE)
+sum(new$number3,na.rm=TRUE)
+sum(new$number4,na.rm=TRUE)
+sum(new$number5,na.rm=TRUE)
+sum(new$number6,na.rm=TRUE)
+```
+
+
+```{r, results = "hide", warning = FALSE, error = FALSE, message = FALSE}
+# TOTAL TRANSITION ----
+
+# import data 89 to 90 1 to 3 ----
+data <- read_csv("~/Documents/Edinburgh Year 4/dissertation/data/89_90_1to3.csv")
+
+# format ----
+new <- data %>%
+  separate(groups, into = c('class0', 'number0', 
+                            'class1', 'number1'), sep = ",") 
+
+new$class0 <- gsub("[^0-9.-]", "", new$class0)
+new$number0 <- gsub("[^0-9.-]", "", new$number0)
+new$class1 <- gsub("[^0-9.-]", "", new$class1)
+new$number1 <- gsub("[^0-9.-]", "", new$number1)
+
+new$number0 <- as.numeric(new$number0)
+new$number1 <- as.numeric(new$number1)
+
+# get sum of all regions for transition and input into excel -----
+sum(new$number1,na.rm=TRUE)
+
+transition_8990_1 <- new %>%
+  dplyr::select(-c(.geo, `system:index`, class0, class1, number0)) %>%
+  mutate(area = number1*30) %>%
+  mutate(year = "1990") %>%
+  mutate(transition = "1") %>%
+  mutate(previous_class = "1") %>%
+  mutate(current_class = "3")
+```
+
+```{r, results = "hide", warning = FALSE, error = FALSE, message = FALSE}
+# load data ----
+detailed_area <- read_csv("data/detailed_area.csv") %>%
+  dplyr::select(-c("X1"))
+colnames(detailed_area)[colnames(detailed_area) == "label"] <- "cell"
+detailed_area$class <- factor(detailed_area$class)
+detailed_area$cell <- factor(detailed_area$cell)
+
+detailed_transition <- read_csv("data/detailed_transition.csv") %>%
+  dplyr::select(-c("X1"))
+colnames(detailed_transition)[colnames(detailed_transition) == "label"] <- "cell"
+detailed_transition$cell <- factor(detailed_transition$cell)
+detailed_transition$transition <- factor(detailed_transition$transition)
+
+# apply bigger grid
+detailedA <-  detailed_area %>%
+  mutate(grid = if_else(cell == 8 | cell == 9 | cell == 10 | cell == 11 | cell == 23 |
+                          cell == 24 | cell == 25 | cell == 26 | cell == 27 |
+                          cell == 38 | cell == 39 | cell == 40 | cell == 41 |
+                          cell == 42 | cell == 43 | cell == 53 | cell == 54 | cell == 55 | cell == 56, "NW", 
+                        if_else(cell == 3 | cell == 4 | cell == 5 | cell == 6 | cell == 7 |
+                                  cell == 19 | cell == 20 | cell == 21 | cell == 22 |
+                                  cell == 35 | cell == 36 | cell == 37 | cell == 49 |
+                                  cell == 50 | cell == 51 | cell == 52, "SW", 
+                                if_else(cell == 64 | cell == 65 | cell == 66 | cell == 67 | cell == 68 |
+                                          cell == 69 | cell == 79 | cell == 80 | cell == 81 |
+                                          cell == 82 | cell == 83 | cell == 84 | cell == 85 |
+                                          cell == 86 | cell == 87 | cell == 88 | cell == 89 | cell == 94 | 
+                                          cell == 95 | cell == 96 | cell == 97 | cell == 98 | cell == 99 |
+                                          cell == 100 | cell == 101 | cell == 102 | cell == 103 | cell == 104, "C",
+                                        if_else(cell == 113 | cell == 114 | cell == 115 | cell == 116 | cell == 117 |
+                                                  cell == 118 | cell == 119 | cell == 120 | cell == 128 |
+                                                  cell == 129 | cell == 130 | cell == 131 | cell == 132 |
+                                                  cell == 133 | cell == 134 | cell == 143 | cell == 144 | cell == 145 | 
+                                                  cell == 146 | cell == 147 | cell == 158 | cell == 159 | cell == 160 |
+                                                  cell == 161 | cell == 162 | cell == 173 | cell == 174 | cell == 175 | cell == 176, "NE",
+                                                if_else(cell == 108 | cell == 109 | cell == 110 | cell == 111 | cell == 112 |
+                                                          cell == 121 | cell == 122 | cell == 123 | cell == 124 |
+                                                          cell == 125 | cell == 126 | cell == 127 | cell == 136 |
+                                                          cell == 137 | cell == 138 | cell == 139 | cell == 140 | cell == 141 | 
+                                                          cell == 142 | cell == 151 | cell == 152 | cell == 153 | cell == 154 |
+                                                          cell == 155 | cell == 156 | cell == 157 | cell == 166 | cell == 167 | cell == 168 |
+                                                          cell == 169 | cell == 170 | cell == 171 | cell == 172 | cell == 183 | cell == 184 | cell == 185 |
+                                                          cell == 186, "SE", "NA")))))) 
+
+# apply bigger grid
+detailedT <- detailed_transition %>%
+  mutate(grid = if_else(cell == 8 | cell == 9 | cell == 10 | cell == 11 | cell == 23 |
+                          cell == 24 | cell == 25 | cell == 26 | cell == 27 |
+                          cell == 38 | cell == 39 | cell == 40 | cell == 41 |
+                          cell == 42 | cell == 43 | cell == 53 | cell == 54 | cell == 55 | cell == 56, "NW", 
+                        if_else(cell == 3 | cell == 4 | cell == 5 | cell == 6 | cell == 7 |
+                                  cell == 19 | cell == 20 | cell == 21 | cell == 22 |
+                                  cell == 35 | cell == 36 | cell == 37 | cell == 49 |
+                                  cell == 50 | cell == 51 | cell == 52, "SW", 
+                                if_else(cell == 64 | cell == 65 | cell == 66 | cell == 67 | cell == 68 |
+                                          cell == 69 | cell == 79 | cell == 80 | cell == 81 |
+                                          cell == 82 | cell == 83 | cell == 84 | cell == 85 |
+                                          cell == 86 | cell == 87 | cell == 88 | cell == 89 | cell == 94 | 
+                                          cell == 95 | cell == 96 | cell == 97 | cell == 98 | cell == 99 |
+                                          cell == 100 | cell == 101 | cell == 102 | cell == 103 | cell == 104, "C",
+                                        if_else(cell == 113 | cell == 114 | cell == 115 | cell == 116 | cell == 117 |
+                                                  cell == 118 | cell == 119 | cell == 120 | cell == 128 |
+                                                  cell == 129 | cell == 130 | cell == 131 | cell == 132 |
+                                                  cell == 133 | cell == 134 | cell == 143 | cell == 144 | cell == 145 | 
+                                                  cell == 146 | cell == 147 | cell == 158 | cell == 159 | cell == 160 |
+                                                  cell == 161 | cell == 162 | cell == 173 | cell == 174 | cell == 175 | cell == 176, "NE",
+                                                if_else(cell == 108 | cell == 109 | cell == 110 | cell == 111 | cell == 112 |
+                                                          cell == 121 | cell == 122 | cell == 123 | cell == 124 |
+                                                          cell == 125 | cell == 126 | cell == 127 | cell == 136 |
+                                                          cell == 137 | cell == 138 | cell == 139 | cell == 140 | cell == 141 | 
+                                                          cell == 142 | cell == 151 | cell == 152 | cell == 153 | cell == 154 |
+                                                          cell == 155 | cell == 156 | cell == 157 | cell == 166 | cell == 167 | cell == 168 |
+                                                          cell == 169 | cell == 170 | cell == 171 | cell == 172 | cell == 183 | cell == 184 | cell == 185 |
+                                                          cell == 186, "SE", "NA")))))) 
+
+# DFs for Q1
+# before and after in km2 per cell 
+questiononeSUC <- detailedA %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1991 | year == 1992 | year == 1993 | year == 1994) %>%
+  dplyr::select(-c(pixels)) %>%
+  mutate(before_after = ifelse(year == 1989 | year == 1990 | year == 1991, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, class, cell) %>%
+  summarise(area = mean(area)/1000) 
+
+
+questiononeEUA <- detailedA %>%
+  dplyr::filter(year == 2001 | year == 2002 | year == 2003 | year == 2004 | year == 2005 | year == 2006) %>%
+  dplyr::select(-c(pixels)) %>%
+  mutate(before_after = ifelse(year == 2001 | year == 2002 | year == 2003, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, class, cell) %>%
+  summarise(area = mean(area)/1000) 
+
+# DFs for Q2
+# before and after 
+questiontwoSUC <- detailedT %>%
+  dplyr::filter(year == 1990 | year == 1991 | year == 1992 | year == 1993 | year == 1994 | year == 1995) %>%
+  dplyr::select(-c(pixels)) %>%
+  mutate(before_after = ifelse(year == 1990 | year == 1991 | year == 1992, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, transition, cell) %>%
+  summarise(area = mean(area)/1000) 
+
+# for EUA
+questiontwoEUA <- detailedT %>%
+  dplyr::filter(year == 2002 | year == 2003 | year == 2004 | year == 2005 | year == 2006 | year == 2007) %>%
+  dplyr::select(-c(pixels)) %>%
+  mutate(before_after = ifelse(year == 2002| year == 2003 | year == 2004, "first", "second")) %>%
+  dplyr::select(-c(year) )%>%
+  group_by(before_after, grid, transition, cell) %>%
+  summarise(area = mean(area)/1000) 
+
+
+# DFs for Q3 ----
+questionthreeASUC <- detailedA %>%
+  dplyr::filter(year == 1989 | year == 1990 | year == 1991 | year == 1995 | year == 1996 | year == 1997) %>%
+  dplyr::select(-c(pixels)) %>%
+  mutate(before_after = ifelse(year == 1989 | year == 1990 | year == 1991, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, class, cell) %>%
+  summarise(area = mean(area)/1000) 
+
+
+questionthreeAEUA <- detailedA %>%
+  dplyr::filter(year == 2001 | year == 2002 | year == 2003 | year == 2007 | year == 2008 | year == 2009) %>%
+  dplyr::select(-c(pixels)) %>%
+  mutate(before_after = ifelse(year == 2001 | year == 2002 | year == 2003, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, class, cell) %>%
+  summarise(area = mean(area)/1000) 
+
+questionthreeTSUC <- detailedT %>%
+  dplyr::filter(year == 1990 | year == 1991 | year == 1992 | year == 1996 | year == 1997 | year == 1998) %>%
+  dplyr::select(-c(pixels)) %>%
+  mutate(before_after = ifelse(year == 1990 | year == 1991 | year == 1992, "first", "second")) %>%
+  dplyr::select(-c(year)) %>%
+  group_by(before_after, grid, transition, cell) %>%
+  summarise(area = mean(area)/1000) 
+
+questionthreeTEUA <- detailedT %>%
+  dplyr::filter(year == 2002 | year == 2003 | year == 2004 | year == 2008 | year == 2009 | year == 2010) %>%
+  dplyr::select(-c(pixels)) %>%
+  mutate(before_after = ifelse(year == 2002| year == 2003 | year == 2004, "first", "second")) %>%
+  dplyr::select(-c(year) )%>%
+  group_by(before_after, grid, transition, cell) %>%
+  summarise(area = mean(area)/1000) 
+```
+
+```{r, results = "hide", warning = FALSE, error = FALSE, message = FALSE}
+# Abandoned SUC ----
+questiononeSUC1 <- questiononeSUC %>%
+  dplyr::filter(class == 1) 
+
+questiononeSUC1$grid <- factor(questiononeSUC1$grid)
+questiononeSUC1$cell <- factor(questiononeSUC1$cell)
+questiononeSUC1$before_after <- factor(questiononeSUC1$before_after)
+
+# model
+abandonedSUC <- lmer(area ~ before_after + (1|grid), data = questiononeSUC1)
+summary(abandonedSUC)
+
+r.squaredGLMM(abandonedSUC)
+
+# check assumptions
+plot(abandonedSUC)
+qqnorm(resid(abandonedSUC)) 
+qqline(resid(abandonedSUC)) 
+```
+
+```{r, results = "hide", warning = FALSE, error = FALSE, message = FALSE}
+# Q2 A--I: EUA ----
+questiontwoEUA1 <- questiontwoEUA %>%
+  dplyr::filter(transition == 1)
+
+questiontwoEUA1$grid <- factor(questiontwoEUA1$grid)
+questiontwoEUA1$cell <- factor(questiontwoEUA1$cell)
+questiontwoEUA1$before_after <- factor(questiontwoEUA1$before_after)
+
+atoiEUA <- lmer(area ~ before_after + (1|grid), data = questiontwoEUA1)
+summary(atoiEUA)
+
+r.squaredGLMM(atoiEUA)
+
+plot(atoiEUA)
+qqnorm(resid(atoiEUA)) 
+qqline(resid(atoiEUA)) 
+```
+
+```{r, results = "hide", warning = FALSE, error = FALSE, message = FALSE}
+# Q3 lag Abandoned SUC ----
+questionthreeSUC1 <- questionthreeASUC %>%
+  dplyr::filter(class == 1) 
+
+questionthreeSUC1$grid <- factor(questionthreeSUC1$grid)
+questionthreeSUC1$cell <- factor(questionthreeSUC1$cell)
+questionthreeSUC1$before_after <- factor(questionthreeSUC1$before_after)
+
+# model
+abandonedlagSUC <- lmer(area ~ before_after + (1|grid), data = questionthreeSUC1)
+summary(abandonedlagSUC)
+
+r.squaredGLMM(abandonedlagSUC)
+
+# check assumptions
+plot(abandonedlagSUC)
+qqnorm(resid(abandonedlagSUC)) 
+qqline(resid(abandonedlagSUC)) 
+```
+
+```{r, results = "hide", warning = FALSE, error = FALSE, message = FALSE}
+# Q3 part b ----
+abandonedseglag <- detailedA %>%
+  dplyr::select(-c(pixels)) %>%
+  filter(class == "1") %>%
+  group_by(year) %>%
+  summarise(year_total = sum(area)/1000)
+
+abandonedlm <- lm(year_total ~ year, data = abandonedseglag) 
+summary(abandonedlm)
+
+abandonedmod <- segmented(abandonedlm, seg.Z = ~year, psi = list(year = c(1996,2004)))
+summary(abandonedmod)
+```
